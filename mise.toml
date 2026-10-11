@@ -1,0 +1,13 @@
+[tools]
+node = "26.11.1"
+pnpm = "12.11.2"
+
+[env]
+# node_modules/.bin のローカル CLI を task から直接呼べるようにする。
+_.path = ["{{config_root}}/node_modules/.bin"]
+
+[tasks.setup]
+description = "依存をインストールする"
+sources = ["package.json", "pnpm-lock.yaml"]
+outputs = ["node_modules/.modules.yaml"]
+run = "pnpm install --frozen-lockfile --prefer-offline"
