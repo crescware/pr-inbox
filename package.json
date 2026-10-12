@@ -2,8 +2,15 @@
   "name": "pr-inbox",
   "version": "0.0.0",
   "license": "MIT",
+  "bin": {
+    "pr-inbox": "dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc"
   },

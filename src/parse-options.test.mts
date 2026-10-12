@@ -29,7 +29,7 @@ test("ユーザー名を一つ必須とし、未知のオプション・不正�
     ["--trunk", "", "author"],
   ]) {
     expect(() => parseOptions(args)).toThrow(
-      "Usage: node index.mts [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>",
+      "Usage: pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>",
     );
   }
 });

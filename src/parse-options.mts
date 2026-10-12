@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util";
 
 const USAGE =
-  "Usage: node index.mts [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>";
+  "Usage: pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>";
 
 const parse = (args: string[]) => {
   try {

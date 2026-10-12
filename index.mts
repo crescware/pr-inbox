@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import path from "node:path";
+import { realpathSync } from "node:fs";
 
 import { clean } from "./src/clean.mts";
 import { fetchPRs } from "./src/fetch-prs.mts";
@@ -14,7 +14,7 @@ export const main = (args: string[]): void => {
   console.log(render(prs, author, target, warnings));
 };
 
-if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
+if (process.argv[1] && realpathSync(process.argv[1]) === import.meta.filename) {
   try {
     main(process.argv.slice(2));
   } catch (error) {
