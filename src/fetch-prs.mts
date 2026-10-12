@@ -3,10 +3,7 @@ import { gh } from "./gh.mts";
 import { mergeOrder } from "./merge-order.mts";
 import type { Detail, PR, Target } from "./types.mts";
 
-export const fetchPRs = (
-  target: Target,
-  author: string,
-): { prs: PR[]; warnings: string[] } => {
+export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings: string[] } => {
   console.error("Fetching open PRs...");
   const all = gh<PR[]>([
     "pr",
@@ -28,9 +25,7 @@ export const fetchPRs = (
   const warnings: string[] = [];
   for (let i = 0; i < ordered.length; i += 5) {
     const batch = ordered.slice(i, i + 5);
-    console.error(
-      "Fetching details: " + batch.map((p) => "#" + p.number).join(", "),
-    );
+    console.error("Fetching details: " + batch.map((p) => "#" + p.number).join(", "));
     const fields = batch
       .map(
         (p) =>

@@ -28,9 +28,7 @@ const runMain = (
   calls: string[][];
 } => {
   const script = new URL("./index.mts", import.meta.url).href;
-  const details = Object.fromEntries(
-    prs.map((p) => ["p" + p.number, p.detail]),
-  );
+  const details = Object.fromEntries(prs.map((p) => ["p" + p.number, p.detail]));
   const result = spawnSync(
     process.execPath,
     [
@@ -63,9 +61,7 @@ main(${JSON.stringify(args)});`,
   };
 };
 test("通信中の取得対象を標準エラー出力に表示し、一覧には混ぜない", () => {
-  const prs = Array.from({ length: 6 }, (_, i) =>
-    pr(i + 1, "main", "feature-" + (i + 1)),
-  );
+  const prs = Array.from({ length: 6 }, (_, i) => pr(i + 1, "main", "feature-" + (i + 1)));
   const result = runMain(["author"], prs);
   expect(result.status).toBe(0);
   expect(result.stderr.trim().split("\n")).toEqual([
@@ -82,18 +78,8 @@ test("通信中の取得対象を標準エラー出力に表示し、一覧に�
 test("オプションがなければカレントディレクトリのリポジトリとデフォルトブランチを使う", () => {
   const result = runMain(["author"], [], repoView("current/repo", "trunk"));
   expect(result.status).toBe(0);
-  expect(result.calls[0]).toEqual([
-    "repo",
-    "view",
-    "--json",
-    "nameWithOwner,defaultBranchRef",
-  ]);
-  expect(result.calls[1]?.slice(0, 4)).toEqual([
-    "pr",
-    "list",
-    "--repo",
-    "current/repo",
-  ]);
+  expect(result.calls[0]).toEqual(["repo", "view", "--json", "nameWithOwner,defaultBranchRef"]);
+  expect(result.calls[1]?.slice(0, 4)).toEqual(["pr", "list", "--repo", "current/repo"]);
   expect(result.stdout.split("\n")[0]).toBe("current/repo / author");
   expect(result.stdout).toMatch(/PR\s+Title\s+trunk\s+Conflict/);
 });

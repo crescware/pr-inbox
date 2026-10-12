@@ -18,9 +18,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === import.meta.filename) {
   try {
     main(process.argv.slice(2));
   } catch (error) {
-    console.error(
-      "pr-inbox: " + clean(error instanceof Error ? error.message : error),
-    );
+    console.error("pr-inbox: " + clean(error instanceof Error ? error.message : error));
     process.exitCode = 1;
   }
 }

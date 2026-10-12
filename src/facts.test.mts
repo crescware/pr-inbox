@@ -48,9 +48,7 @@ test("レビュー依頼がコメントや承認に変わっても Reviewer か�
   p.reviewRequests = [{ login: "reviewer-b" }, { login: "reviewer-a" }];
   expect(facts(p).reviewers).toEqual(["reviewer-a", "reviewer-b"]);
   p.reviewRequests = [{ login: "reviewer-b" }];
-  p.detail.reviews.nodes = [
-    review("COMMENTED", "指摘", undefined, "reviewer-a"),
-  ];
+  p.detail.reviews.nodes = [review("COMMENTED", "指摘", undefined, "reviewer-a")];
   expect(facts(p).reviewers).toEqual(["reviewer-a", "reviewer-b"]);
   p.detail.reviews.nodes.push(review("APPROVED", "", undefined, "Reviewer-A"));
   expect(facts(p).reviewers).toEqual(["Reviewer-A", "reviewer-b"]);
@@ -73,13 +71,7 @@ test("Reviewer を大文字小文字に関係なくアルファベット順に�
     { name: "review-group" },
     { login: "Beta" },
   ];
-  expect(facts(p).reviewers).toEqual([
-    "alpha",
-    "Beta",
-    "review-group",
-    "team-a",
-    "Zulu",
-  ]);
+  expect(facts(p).reviewers).toEqual(["alpha", "Beta", "review-group", "team-a", "Zulu"]);
   expect(p.reviewRequests[0]?.login).toBe("Zulu");
 });
 test("最新コメントより後のコミットを検出する", () => {
@@ -158,9 +150,7 @@ test("HEAD の日時が古くてもコメント後のコミットが他にあれ
 });
 test("コメントとコミットが同時刻ならコメント後とは扱わない", () => {
   const p = pr();
-  p.detail.reviews.nodes = [
-    review("COMMENTED", "指摘", "2026-10-09T10:00:00Z"),
-  ];
+  p.detail.reviews.nodes = [review("COMMENTED", "指摘", "2026-10-09T10:00:00Z")];
   expect(facts(p).after).toBe("なし");
 });
 test("コメント後にマージコミットだけが増えてもチェックしない", () => {

@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util";
 
-const USAGE =
-  "Usage: pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>";
+const USAGE = "Usage: pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>";
 
 const parse = (args: string[]) => {
   try {
@@ -15,9 +14,7 @@ const parse = (args: string[]) => {
   }
 };
 
-export const parseOptions = (
-  args: string[],
-): { author: string; repo?: string; trunk?: string } => {
+export const parseOptions = (args: string[]): { author: string; repo?: string; trunk?: string } => {
   const { values, positionals } = parse(args);
   const [author] = positionals;
   if (

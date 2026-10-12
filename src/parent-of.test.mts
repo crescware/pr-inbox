@@ -22,7 +22,5 @@ test("fork の同名ブランチは親にしない", () => {
 test("親の候補が複数あれば推測せずエラーにする", () => {
   const child = pr(3, "parent", "child");
   const candidates = [pr(1, "main", "parent"), pr(2, "main", "parent")];
-  expect(() => parentOf([...candidates, child], child, "main")).toThrow(
-    "Ambiguous parent PR: #3",
-  );
+  expect(() => parentOf([...candidates, child], child, "main")).toThrow("Ambiguous parent PR: #3");
 });
