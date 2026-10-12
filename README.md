@@ -63,16 +63,13 @@ npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```bash
 mise install
 pnpm install
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
+pnpm check
 pnpm build
 ```
 
-`pnpm format:check` は oxfmt で整形のずれを検出する。`pnpm format` で整形する。`pnpm lint` は oxlint で問題のある書き方を検出し、警告も失敗として扱う。
+`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。
 
-`pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepack` で自動的にビルドし、`dist/` だけを公開する。
+`pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepublishOnly` で `pnpm check` を、`prepack` でビルドを自動的に実行し、`dist/` だけを公開する。
 
 開発では `mise.toml` で指定した Node.js 26.11.1 を使い、TypeScript の型注釈を取り除いてソースを直接実行できる。
 
