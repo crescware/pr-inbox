@@ -63,7 +63,10 @@ mise install
 pnpm install
 pnpm typecheck
 pnpm test
+pnpm build
 ```
+
+`pnpm build` は `dist/` に JavaScript を出力する。
 
 ## ライセンス
 
