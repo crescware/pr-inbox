@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { styleText } from "node:util";
+import { parseArgs, styleText } from "node:util";
 
-const REPO = "org/repo";
-const TRUNK = "main";
+const USAGE =
+  "Usage: node index.mts [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>";
 
+export type Target = { repo: string; trunk: string };
 type Actor = { login: string; __typename: string } | null;
 type Connection<T> = {
   nodes: T[];
@@ -177,8 +178,8 @@ export const facts = (pr: PR): Facts => {
   };
 };
 
-const parentOf = (all: PR[], pr: PR): PR | undefined => {
-  if (pr.baseRefName === TRUNK) {
+const parentOf = (all: PR[], pr: PR, trunk: string): PR | undefined => {
+  if (pr.baseRefName === trunk) {
     return undefined;
   }
   const matches = all.filter(
@@ -190,7 +191,11 @@ const parentOf = (all: PR[], pr: PR): PR | undefined => {
   return matches[0];
 };
 
-export const mergeOrder = (all: PR[], author: string): PR[] => {
+export const mergeOrder = (
+  all: PR[],
+  author: string,
+  trunk: string,
+): PR[] => {
   const selected = all.filter(
     (p) => p.author.login.toLowerCase() === author.toLowerCase(),
   );
@@ -204,7 +209,7 @@ export const mergeOrder = (all: PR[], author: string): PR[] => {
       return;
     }
     visiting.add(pr.number);
-    const parent = parentOf(all, pr);
+    const parent = parentOf(all, pr, trunk);
     if (parent) {
       parents.set(pr.number, parent);
       include(parent, visiting);
@@ -251,13 +256,16 @@ const gh = <T,>(args: string[]): T => {
   return value;
 };
 
-const fetchPRs = (author: string): { prs: PR[]; warnings: string[] } => {
+const fetchPRs = (
+  target: Target,
+  author: string,
+): { prs: PR[]; warnings: string[] } => {
   console.error("Fetching open PRs...");
   const all = gh<PR[]>([
     "pr",
     "list",
     "--repo",
-    REPO,
+    target.repo,
     "--state",
     "open",
     "--limit",
@@ -268,7 +276,8 @@ const fetchPRs = (author: string): { prs: PR[]; warnings: string[] } => {
   if (all.length === 500) {
     throw new Error("Cannot determine merge order with 500 or more open PRs");
   }
-  const ordered = mergeOrder(all, author);
+  const ordered = mergeOrder(all, author, target.trunk);
+  const [owner, name] = target.repo.split("/");
   const warnings: string[] = [];
   for (let i = 0; i < ordered.length; i += 5) {
     const batch = ordered.slice(i, i + 5);
@@ -298,7 +307,13 @@ const fetchPRs = (author: string): { prs: PR[]; warnings: string[] } => {
         "api",
         "graphql",
         "-f",
-        'query=query{repository(owner:"org",name:"repo"){' + fields + "}}",
+        "owner=" + owner,
+        "-f",
+        "name=" + name,
+        "-f",
+        "query=query($owner:String!,$name:String!){repository(owner:$owner,name:$name){" +
+          fields +
+          "}}",
       ]);
       for (const pr of batch) {
         const detail = response.data.repository["p" + pr.number];
@@ -380,12 +395,12 @@ const indicator = (
   );
 };
 
-const prNumber = (number: number, size = 0): string => {
+const prNumber = (repo: string, number: number, size = 0): string => {
   const label = "#" + number;
   const padded = cell(label, size);
   return process.stdout.isTTY
     ? "\u001B]8;;https://github.com/" +
-        REPO +
+        repo +
         "/pull/" +
         number +
         "\u001B\\" +
@@ -415,10 +430,11 @@ export const relativeTime = (value: string | null, now: number): string => {
 export const render = (
   all: PR[],
   author: string,
+  target: Target,
   warnings: string[] = [],
   now = Date.now(),
 ): string => {
-  const ordered = mergeOrder(all, author);
+  const ordered = mergeOrder(all, author, target.trunk);
   const selectedAuthor = author.toLowerCase();
   const title = (pr: PR): string =>
     (pr.author.login.toLowerCase() !== selectedAuthor ? "[parent] " : "") +
@@ -426,7 +442,7 @@ export const render = (
   const roots = new Map<string, PR[]>();
   const children = new Map<number, PR[]>();
   for (const pr of ordered) {
-    const parent = parentOf(ordered, pr);
+    const parent = parentOf(ordered, pr, target.trunk);
     if (parent) {
       const siblings = children.get(parent.number) ?? [];
       siblings.push(pr);
@@ -438,14 +454,14 @@ export const render = (
     }
   }
   const displayOrder: PR[] = [];
-  const lines = [REPO + " / " + author, "", styled("bold", "Stack"), ""];
+  const lines = [target.repo + " / " + author, "", styled("bold", "Stack"), ""];
   const draw = (siblings: PR[], prefix: string): void => {
     siblings.forEach((pr, index) => {
       const last = index === siblings.length - 1;
       lines.push(
         prefix +
           (last ? "└─ " : "├─ ") +
-          prNumber(pr.number) +
+          prNumber(target.repo, pr.number) +
           " " +
           styled("dim", title(pr)),
       );
@@ -465,6 +481,7 @@ export const render = (
     width("Title"),
     ...displayOrder.map((pr) => width(title(pr))),
   );
+  const trunkWidth = width(clean(target.trunk));
   lines.push(
     "",
     styled(
@@ -472,7 +489,7 @@ export const render = (
       [
         cell("PR", 7),
         cell("Title", titleWidth),
-        cell("main", 4),
+        cell(target.trunk, trunkWidth),
         cell("Conflict", 8),
         cell("Approved", 8),
         cell("Fixed", 5),
@@ -506,14 +523,16 @@ export const render = (
   displayOrder.forEach((pr) => {
     const f = facts(pr);
     const highlight =
-      pr.baseRefName === TRUNK && f.approved === true && f.conflict === false
+      pr.baseRefName === target.trunk &&
+      f.approved === true &&
+      f.conflict === false
         ? "greenBright"
         : "none";
     lines.push(
       [
-        styled(highlight, prNumber(pr.number, 7)),
+        styled(highlight, prNumber(target.repo, pr.number, 7)),
         styled(highlight, cell(title(pr), titleWidth)),
-        indicator(pr.baseRefName === TRUNK, 4),
+        indicator(pr.baseRefName === target.trunk, trunkWidth),
         indicator(f.conflict, 8, "red"),
         indicator(f.approved, 8),
         indicator(f.after === "不明" ? null : f.after === "あり", 5),
@@ -537,17 +556,69 @@ export const render = (
   return lines.join("\n");
 };
 
-export const main = (args: string[]): void => {
-  const [author] = args;
-  if (
-    args.length !== 1 ||
-    !author ||
-    !/^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i.test(author)
-  ) {
-    throw new Error("Usage: node index.mts <GitHub username>");
+const parseOptions = (args: string[]) => {
+  try {
+    return parseArgs({
+      args,
+      allowPositionals: true,
+      options: { repo: { type: "string" }, trunk: { type: "string" } },
+    });
+  } catch {
+    throw new Error(USAGE);
   }
-  const { prs, warnings } = fetchPRs(author);
-  console.log(render(prs, author, warnings));
+};
+
+const resolveTarget = (repo?: string, trunk?: string): Target => {
+  if (repo && trunk) {
+    return { repo, trunk };
+  }
+  let view: {
+    nameWithOwner: string;
+    defaultBranchRef: { name: string } | null;
+  };
+  try {
+    view = gh([
+      "repo",
+      "view",
+      ...(repo ? [repo] : []),
+      "--json",
+      "nameWithOwner,defaultBranchRef",
+    ]);
+  } catch (error) {
+    if (repo) {
+      throw error;
+    }
+    throw new Error(
+      "Cannot determine the repository of the current directory; use --repo OWNER/REPO: " +
+        clean(error instanceof Error ? error.message : error),
+    );
+  }
+  const branch = trunk ?? view.defaultBranchRef?.name;
+  if (!branch) {
+    throw new Error(
+      "Cannot determine the default branch of " +
+        view.nameWithOwner +
+        "; use --trunk BRANCH",
+    );
+  }
+  return { repo: view.nameWithOwner, trunk: branch };
+};
+
+export const main = (args: string[]): void => {
+  const { values, positionals } = parseOptions(args);
+  const [author] = positionals;
+  if (
+    positionals.length !== 1 ||
+    !author ||
+    !/^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i.test(author) ||
+    (values.repo !== undefined && !/^[a-z\d-]+\/[\w.-]+$/i.test(values.repo)) ||
+    values.trunk === ""
+  ) {
+    throw new Error(USAGE);
+  }
+  const target = resolveTarget(values.repo, values.trunk);
+  const { prs, warnings } = fetchPRs(target, author);
+  console.log(render(prs, author, target, warnings));
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
