@@ -7,12 +7,8 @@ test("GitHub ユーザー名だけを受け取る", () => {
 });
 test("--repo と --trunk を、値を続けても = でつないでも受け取る", () => {
   const expected = { author: "author", repo: "org/repo", trunk: "main" };
-  expect(
-    parseOptions(["--repo", "org/repo", "--trunk", "main", "author"]),
-  ).toEqual(expected);
-  expect(parseOptions(["author", "--repo=org/repo", "--trunk=main"])).toEqual(
-    expected,
-  );
+  expect(parseOptions(["--repo", "org/repo", "--trunk", "main", "author"])).toEqual(expected);
+  expect(parseOptions(["author", "--repo=org/repo", "--trunk=main"])).toEqual(expected);
 });
 test("ユーザー名を一つ必須とし、未知のオプション・不正な名前やリポジトリは拒否する", () => {
   for (const args of [

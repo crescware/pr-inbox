@@ -13,18 +13,21 @@
   "files": [
     "dist"
   ],
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
     "build": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
+    "oxfmt": "0.72.0",
     "typescript": "7.0.2",
     "vitest": "5.0.3"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

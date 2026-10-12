@@ -41,15 +41,8 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   const leaf = pr(6, "child", "leaf");
   leaf.title = "孫の件名";
   const other = pr(51, "main", "other");
-  other.title =
-    "端末幅が狭くても絶対に省略しないとても長い日本語と English の件名".repeat(
-      3,
-    );
-  const output = render(
-    [other, leaf, child, sibling, parent],
-    "author",
-    target,
-  );
+  other.title = "端末幅が狭くても絶対に省略しないとても長い日本語と English の件名".repeat(3);
+  const output = render([other, leaf, child, sibling, parent], "author", target);
   const [tree, list] = output.split("\nPRs\n");
   expect(tree?.trimEnd()).toBe(
     [
@@ -85,9 +78,7 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
   const checked = pr(1);
   checked.detail.reviews.nodes = [review("APPROVED", "指摘")];
   const unchecked = pr(2);
-  unchecked.detail.reviews.nodes = [
-    review("COMMENTED", "指摘", "2026-10-09T11:00:00Z"),
-  ];
+  unchecked.detail.reviews.nodes = [review("COMMENTED", "指摘", "2026-10-09T11:00:00Z")];
   const noComments = pr(3);
   const unknown: PR = { ...pr(4), detail: undefined };
   const output = render(
@@ -119,23 +110,13 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
 test("時間の列を桁数に関係なく右詰めする", () => {
   const first = pr(1);
   first.title = "First";
-  first.detail.reviews.nodes = [
-    review("COMMENTED", "指摘", "2026-09-29T12:00:00Z"),
-  ];
+  first.detail.reviews.nodes = [review("COMMENTED", "指摘", "2026-09-29T12:00:00Z")];
   first.detail.commits.nodes[0].commit.committedDate = "2026-10-09T02:00:00Z";
   const second = pr(2);
   second.title = "Second";
-  second.detail.reviews.nodes = [
-    review("COMMENTED", "指摘", "2026-10-09T11:51:00Z"),
-  ];
+  second.detail.reviews.nodes = [review("COMMENTED", "指摘", "2026-10-09T11:51:00Z")];
   second.detail.commits.nodes[0].commit.committedDate = "2026-10-09T11:59:00Z";
-  const output = render(
-    [first, second],
-    "author",
-    target,
-    [],
-    Date.parse("2026-10-09T12:00:00Z"),
-  );
+  const output = render([first, second], "author", target, [], Date.parse("2026-10-09T12:00:00Z"));
   const [header = "", row1 = "", row2 = ""] = output
     .split("\n")
     .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
@@ -156,30 +137,13 @@ test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", 
     detail: undefined,
   };
   const output = render([checked, unchecked, unknown], "author", target);
-  const [header = "", ...rows] = output
-    .split("\n")
-    .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
+  const [header = "", ...rows] = output.split("\n").filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
   const columns = ["main", "Conflict", "Approved", "Fixed"].map(
     (label) => header.indexOf(label) + label.length - 1,
   );
-  expect(columns.map((column) => rows[0]?.[column])).toEqual([
-    "✓",
-    "-",
-    "✓",
-    "✓",
-  ]);
-  expect(columns.map((column) => rows[1]?.[column])).toEqual([
-    "-",
-    "-",
-    "-",
-    "-",
-  ]);
-  expect(columns.map((column) => rows[2]?.[column])).toEqual([
-    "✓",
-    "?",
-    "?",
-    "?",
-  ]);
+  expect(columns.map((column) => rows[0]?.[column])).toEqual(["✓", "-", "✓", "✓"]);
+  expect(columns.map((column) => rows[1]?.[column])).toEqual(["-", "-", "-", "-"]);
+  expect(columns.map((column) => rows[2]?.[column])).toEqual(["✓", "?", "?", "?"]);
 });
 test("PR タイトル以外は英語で表示し、表の下に摘要を出さない", () => {
   const parent = pr(1, "main", "parent");
@@ -203,9 +167,7 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   );
   expect(withoutTitles).not.toMatch(/[^\u0020-\u007E\n✓├─└│]/u);
   expect(output.trimEnd().split("\n").at(-1)).toMatch(/^#4\s/);
-  expect(render([], "author", target, ["Fetch failed"])).toMatch(
-    /\nWarning: Fetch failed$/,
-  );
+  expect(render([], "author", target, ["Fetch failed"])).toMatch(/\nWarning: Fetch failed$/);
 });
 test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR では色を付けない", () => {
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
@@ -280,9 +242,7 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       expect(result.stdout).toContain("\u001B[1mStack\u001B[22m\n\nmain\n");
       expect(result.stdout).toContain("\u001B[1mPRs\u001B[22m");
       expect(result.stdout).toContain("\u001B[1m\u001B[2mPR ");
-      expect(result.stdout).toContain(
-        "\u001B]8;;\u001B\\ \u001B[2mテスト\u001B[22m",
-      );
+      expect(result.stdout).toContain("\u001B]8;;\u001B\\ \u001B[2mテスト\u001B[22m");
       const firstRow = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).startsWith("#1 "));
@@ -302,9 +262,7 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       for (const number of [1, 2, 3, 5, 6, 7]) {
         const normal = result.stdout
           .split("\n")
-          .find((line) =>
-            stripVTControlCharacters(line).startsWith("#" + number + " "),
-          );
+          .find((line) => stripVTControlCharacters(line).startsWith("#" + number + " "));
         expect(normal).toBeDefined();
         expect(normal).not.toContain("\u001B[92m");
       }
@@ -327,39 +285,24 @@ test("宛先ブランチの列はブランチ名を見出しにし、値を見�
     .split("\n")
     .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
   expect(header).toMatch(/Title\s+production\s+Conflict/);
-  expect(row[header.indexOf("production") + "production".length - 1]).toBe(
-    "✓",
-  );
+  expect(row[header.indexOf("production") + "production".length - 1]).toBe("✓");
 });
 test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下にまとめる", () => {
   const multiple = pr(1);
-  multiple.reviewRequests = [
-    { login: "bravo-reviewer" },
-    { login: "alpha-reviewer" },
-  ];
+  multiple.reviewRequests = [{ login: "bravo-reviewer" }, { login: "alpha-reviewer" }];
   const single = pr(2);
   single.reviewRequests = [{ login: "single-reviewer" }];
   const repeated = pr(3);
-  repeated.reviewRequests = [
-    { login: "alpha-reviewer" },
-    { login: "delta-reviewer" },
-  ];
+  repeated.reviewRequests = [{ login: "alpha-reviewer" }, { login: "delta-reviewer" }];
   const output = render([multiple, single, repeated], "author", target);
   const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
   expect(rows[0]).toMatch(/alpha, bravo$/);
   expect(rows[1]).toMatch(/single-reviewer$/);
   expect(rows[2]).toMatch(/alpha, delta$/);
   expect(output.split("\nReviewers\n\n")[1]).toBe(
-    [
-      "alpha  alpha-reviewer",
-      "bravo  bravo-reviewer",
-      "delta  delta-reviewer",
-      "",
-    ].join("\n"),
+    ["alpha  alpha-reviewer", "bravo  bravo-reviewer", "delta  delta-reviewer", ""].join("\n"),
   );
-  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(
-    output.indexOf("#3 "),
-  );
+  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("#3 "));
 });
 test("1人だけの場合と5文字以下の名前だけの場合は対応表を出さない", () => {
   const single = pr(1);

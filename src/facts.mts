@@ -4,16 +4,12 @@ import type { Actor, Facts, PR } from "./types.mts";
 
 const human = (actor: Actor, author: string): actor is NonNullable<Actor> => {
   return Boolean(
-    actor &&
-    actor.__typename === "User" &&
-    actor.login.toLowerCase() !== author.toLowerCase(),
+    actor && actor.__typename === "User" && actor.login.toLowerCase() !== author.toLowerCase(),
   );
 };
 
 export const facts = (pr: PR): Facts => {
-  const requested = pr.reviewRequests.map(
-    (r) => r.login || r.slug || r.name || "?",
-  );
+  const requested = pr.reviewRequests.map((r) => r.login || r.slug || r.name || "?");
   const detail = pr.detail;
   if (!detail) {
     return {
@@ -33,10 +29,7 @@ export const facts = (pr: PR): Facts => {
   for (const r of [...reviews].sort(
     (a, b) => Date.parse(a.submittedAt || "") - Date.parse(b.submittedAt || ""),
   )) {
-    if (
-      r.author &&
-      ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)
-    ) {
+    if (r.author && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) {
       opinions.set(r.author.login, r.state);
     }
   }
@@ -53,9 +46,7 @@ export const facts = (pr: PR): Facts => {
     ...reviews.filter((r) => r.body.trim()).map((r) => r.submittedAt),
     ...threads.flatMap((t) =>
       t.comments.nodes
-        .filter(
-          (c) => human(c.author, pr.author.login) && c.state !== "PENDING",
-        )
+        .filter((c) => human(c.author, pr.author.login) && c.state !== "PENDING")
         .map((c) => latest([c.createdAt, c.pullRequestReview?.submittedAt])),
     ),
   ];
@@ -81,18 +72,8 @@ export const facts = (pr: PR): Facts => {
           : "なし";
   return {
     approved,
-    conflict:
-      detail.mergeable === "UNKNOWN"
-        ? null
-        : detail.mergeable === "CONFLICTING",
-    approval:
-      approved === null
-        ? "不明"
-        : changes
-          ? "変更要求"
-          : approved
-            ? "あり"
-            : "なし",
+    conflict: detail.mergeable === "UNKNOWN" ? null : detail.mergeable === "CONFLICTING",
+    approval: approved === null ? "不明" : changes ? "変更要求" : approved ? "あり" : "なし",
     reviewers: reviewerNames([
       ...requested,
       ...reviews.flatMap((r) => (r.author ? [r.author.login] : [])),

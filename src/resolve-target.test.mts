@@ -17,12 +17,7 @@ beforeEach(() => {
 test("指定がなければカレントディレクトリのリポジトリとデフォルトブランチを使う", () => {
   vi.mocked(gh).mockReturnValue(view("current/repo", "trunk"));
   expect(resolveTarget()).toEqual({ repo: "current/repo", trunk: "trunk" });
-  expect(gh).toHaveBeenCalledWith([
-    "repo",
-    "view",
-    "--json",
-    "nameWithOwner,defaultBranchRef",
-  ]);
+  expect(gh).toHaveBeenCalledWith(["repo", "view", "--json", "nameWithOwner,defaultBranchRef"]);
 });
 test("リポジトリの指定があればそのリポジトリのデフォルトブランチを使う", () => {
   vi.mocked(gh).mockReturnValue(view("other/repo", "trunk"));
@@ -68,9 +63,7 @@ test("指定したリポジトリを取得できなければ gh のエラーを�
   vi.mocked(gh).mockImplementation(() => {
     throw new Error("Could not resolve to a Repository");
   });
-  expect(() => resolveTarget("other/repo")).toThrow(
-    /^Could not resolve to a Repository$/,
-  );
+  expect(() => resolveTarget("other/repo")).toThrow(/^Could not resolve to a Repository$/);
 });
 test("デフォルトブランチを取得できなければ --trunk を案内する", () => {
   vi.mocked(gh).mockReturnValue(view("current/repo", null));

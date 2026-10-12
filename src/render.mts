@@ -21,8 +21,7 @@ export const render = (
   const ordered = mergeOrder(all, author, target.trunk);
   const selectedAuthor = author.toLowerCase();
   const title = (pr: PR): string =>
-    (pr.author.login.toLowerCase() !== selectedAuthor ? "[parent] " : "") +
-    clean(pr.title);
+    (pr.author.login.toLowerCase() !== selectedAuthor ? "[parent] " : "") + clean(pr.title);
   const roots = new Map<string, PR[]>();
   const children = new Map<number, PR[]>();
   for (const pr of ordered) {
@@ -61,10 +60,7 @@ export const render = (
     lines.push("No open PRs");
   }
   lines.push("", styled("bold", "PRs"));
-  const titleWidth = Math.max(
-    width("Title"),
-    ...displayOrder.map((pr) => width(title(pr))),
-  );
+  const titleWidth = Math.max(width("Title"), ...displayOrder.map((pr) => width(title(pr))));
   const trunkWidth = width(clean(target.trunk));
   lines.push(
     "",
@@ -95,10 +91,7 @@ export const render = (
       .map((name) => {
         const short = [...name].slice(0, 5).join("");
         if (short !== name) {
-          abbreviations.set(
-            short,
-            reviewerNames([...(abbreviations.get(short) ?? []), name]),
-          );
+          abbreviations.set(short, reviewerNames([...(abbreviations.get(short) ?? []), name]));
         }
         return short;
       })
@@ -107,9 +100,7 @@ export const render = (
   displayOrder.forEach((pr) => {
     const f = facts(pr);
     const highlight =
-      pr.baseRefName === target.trunk &&
-      f.approved === true &&
-      f.conflict === false
+      pr.baseRefName === target.trunk && f.approved === true && f.conflict === false
         ? "greenBright"
         : "none";
     lines.push(
@@ -130,9 +121,7 @@ export const render = (
   if (abbreviations.size) {
     lines.push(styled("bold", "Reviewers"), "");
     for (const short of reviewerNames([...abbreviations.keys()])) {
-      lines.push(
-        cell(short, 5) + "  " + (abbreviations.get(short) ?? []).join(", "),
-      );
+      lines.push(cell(short, 5) + "  " + (abbreviations.get(short) ?? []).join(", "));
     }
     lines.push("");
   }

@@ -30,9 +30,7 @@ export const resolveTarget = (repo?: string, trunk?: string): Target => {
   const branch = trunk ?? view.defaultBranchRef?.name;
   if (!branch) {
     throw new Error(
-      "Cannot determine the default branch of " +
-        view.nameWithOwner +
-        "; use --trunk BRANCH",
+      "Cannot determine the default branch of " + view.nameWithOwner + "; use --trunk BRANCH",
     );
   }
   return { repo: view.nameWithOwner, trunk: branch };

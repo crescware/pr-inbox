@@ -10,17 +10,11 @@ export const gh = <T,>(args: string[]): T => {
     env: { ...process.env, GH_PROMPT_DISABLED: "1" },
   });
   if (result.error || result.status !== 0) {
-    throw new Error(
-      clean(result.error?.message || result.stderr).slice(0, 400),
-    );
+    throw new Error(clean(result.error?.message || result.stderr).slice(0, 400));
   }
-  const value: T & { errors?: { message: string }[] } = JSON.parse(
-    result.stdout,
-  );
+  const value: T & { errors?: { message: string }[] } = JSON.parse(result.stdout);
   if (value.errors?.length) {
-    throw new Error(
-      value.errors.map((e: { message: string }) => e.message).join("; "),
-    );
+    throw new Error(value.errors.map((e: { message: string }) => e.message).join("; "));
   }
   return value;
 };

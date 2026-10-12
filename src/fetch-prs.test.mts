@@ -17,14 +17,11 @@ const respond = (prs: PR[], graphql?: () => unknown) => {
     if (graphql) {
       return graphql();
     }
-    const details = Object.fromEntries(
-      prs.map((p) => ["p" + p.number, p.detail]),
-    );
+    const details = Object.fromEntries(prs.map((p) => ["p" + p.number, p.detail]));
     return { data: { repository: details } };
   });
 };
-const progress = () =>
-  vi.mocked(console.error).mock.calls.map(([message]) => message);
+const progress = () => vi.mocked(console.error).mock.calls.map(([message]) => message);
 
 beforeEach(() => {
   vi.mocked(gh).mockReset();
@@ -35,9 +32,7 @@ afterEach(() => {
 });
 
 test("対象リポジトリの Open PR を取得し、詳細を 5 件ずつ取得する", () => {
-  const prs = Array.from({ length: 6 }, (_, i) =>
-    pr(i + 1, "main", "feature-" + (i + 1)),
-  );
+  const prs = Array.from({ length: 6 }, (_, i) => pr(i + 1, "main", "feature-" + (i + 1)));
   respond(prs);
   const result = fetchPRs(target, "author");
   expect(vi.mocked(gh).mock.calls[0]?.[0].slice(0, 4)).toEqual([
@@ -68,17 +63,8 @@ test("リポジトリ名はクエリに埋め込まず GraphQL の変数で渡�
   respond([pr()]);
   fetchPRs({ repo: "other/repo", trunk: "main" }, "author");
   const graphql = vi.mocked(gh).mock.calls[1]?.[0] ?? [];
-  expect(graphql.slice(0, 6)).toEqual([
-    "api",
-    "graphql",
-    "-f",
-    "owner=other",
-    "-f",
-    "name=repo",
-  ]);
-  expect(graphql.find((arg) => arg.startsWith("query="))).not.toContain(
-    "other",
-  );
+  expect(graphql.slice(0, 6)).toEqual(["api", "graphql", "-f", "owner=other", "-f", "name=repo"]);
+  expect(graphql.find((arg) => arg.startsWith("query="))).not.toContain("other");
 });
 test("詳細のブランチ名で一覧の値を置き換え、Open でなくなった PR は除く", () => {
   const renamed = pr(1, "main", "feature");
@@ -87,9 +73,7 @@ test("詳細のブランチ名で一覧の値を置き換え、Open でなくな
   merged.detail.state = "MERGED";
   respond([renamed, merged]);
   const result = fetchPRs(target, "author");
-  expect(result.prs.map((p) => [p.number, p.headRefName])).toEqual([
-    [1, "renamed"],
-  ]);
+  expect(result.prs.map((p) => [p.number, p.headRefName])).toEqual([[1, "renamed"]]);
 });
 test("詳細を取得できなかった PR は警告にし、詳細なしで残す", () => {
   respond([pr(1), pr(2, "main", "second")], () => {
@@ -105,9 +89,7 @@ test("応答に詳細が欠けていれば警告にする", () => {
     data: { repository: { p1: first.detail } },
   }));
   const result = fetchPRs(target, "author");
-  expect(result.warnings).toEqual([
-    "Failed to fetch #1, #2: Missing details for #2",
-  ]);
+  expect(result.warnings).toEqual(["Failed to fetch #1, #2: Missing details for #2"]);
 });
 test("Open PR が 500 件以上あると merge 順を決められないのでエラーにする", () => {
   respond(Array.from({ length: 500 }, (_, i) => pr(i + 1)));

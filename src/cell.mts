@@ -12,13 +12,6 @@ export const cell = (
   const padding = " ".repeat(Math.max(0, size - width(text)));
   const padded = align === "right" ? padding + text : text + padding;
   const style =
-    color ??
-    (text === "✓"
-      ? "green"
-      : text === "-"
-        ? "dim"
-        : text === "?"
-          ? "yellow"
-          : "none");
+    color ?? (text === "✓" ? "green" : text === "-" ? "dim" : text === "?" ? "yellow" : "none");
   return styled(style, padded);
 };

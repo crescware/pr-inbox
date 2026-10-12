@@ -9,11 +9,7 @@ export const empty = <T,>(
   nodes,
   pageInfo: {},
 });
-export const pr = (
-  number = 1,
-  base = "main",
-  branch = "feature",
-): PR & { detail: Detail } => ({
+export const pr = (number = 1, base = "main", branch = "feature"): PR & { detail: Detail } => ({
   number,
   title: "テスト",
   author: { login: "author" },

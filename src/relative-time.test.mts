@@ -14,9 +14,7 @@ test("相対時間を m・h・d で表示し、単位の境界を切り替える
     [2880, "2d"],
     [-60, "-1h"],
   ] as const) {
-    expect(
-      relativeTime(new Date(now - minutes * 60_000).toISOString(), now),
-    ).toBe(expected);
+    expect(relativeTime(new Date(now - minutes * 60_000).toISOString(), now)).toBe(expected);
   }
   expect(relativeTime(null, now)).toBe("-");
   expect(relativeTime("invalid", now)).toBe("?");
