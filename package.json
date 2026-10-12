@@ -1,15 +1,23 @@
 {
   "name": "pr-inbox",
   "version": "0.0.0",
+  "description": "指定ユーザーの Open PR を、stack ツリーと同じ順序のレビュー状況一覧でターミナルに表示する",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crescware/pr-inbox.git"
+  },
   "bin": {
     "pr-inbox": "dist/index.mjs"
   },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc"
