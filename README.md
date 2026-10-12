@@ -61,6 +61,7 @@ node index.mts [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```bash
 mise install
 pnpm install
+pnpm typecheck
 pnpm test
 ```
 
