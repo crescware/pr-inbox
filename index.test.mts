@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
@@ -110,7 +113,22 @@ test("引数が不正なら GitHub に問い合わせずに使い方を表示し
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toBe(
-      "pr-inbox: Usage: node index.mts [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>\n",
+      "pr-inbox: Usage: pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>\n",
     );
+  }
+});
+test("npm のコマンドのようにシンボリックリンク経由で起動しても実行する", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-inbox-"));
+  try {
+    const link = path.join(dir, "pr-inbox");
+    symlinkSync(fileURLToPath(new URL("./index.mts", import.meta.url)), link);
+    const result = spawnSync(process.execPath, [link], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: "/no-gh-available" },
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("pr-inbox: Usage: pr-inbox");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

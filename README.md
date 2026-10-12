@@ -4,14 +4,16 @@
 
 ## 必要なもの
 
-- Node.js 26.11.1（`mise.toml` で指定）。TypeScript の型注釈を取り除いて直接実行する
+- Node.js（24.21.0 と 26.11.1 で動作を確認）
 - GitHub CLI (`gh`)。対象リポジトリを読み取れるアカウントで `gh auth login` を済ませておく
 
 ## 使用方法
 
 ```bash
-node index.mts [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
+npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```
+
+`npm install -g pr-inbox` でインストールした場合は `pr-inbox` で実行できる。
 
 `YOUR_GITHUB_USERNAME` は確認したい GitHub ユーザー名に置き換える。ユーザー名は必須。
 
@@ -66,7 +68,13 @@ pnpm test
 pnpm build
 ```
 
-`pnpm build` は `dist/` に JavaScript を出力する。
+`pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepack` で自動的にビルドし、`dist/` だけを公開する。
+
+開発では `mise.toml` で指定した Node.js 26.11.1 を使い、TypeScript の型注釈を取り除いてソースを直接実行できる。
+
+```bash
+node index.mts [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
+```
 
 ## ライセンス
 
