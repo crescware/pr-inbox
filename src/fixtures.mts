@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import type { Detail, PR, Target } from "./types.mts";
 
 export const target: Target = { repo: "org/repo", trunk: "main" };
-export const empty = <T>(
+export const empty = <T,>(
   nodes: T[] = [],
 ): { nodes: T[]; pageInfo: Detail["reviews"]["pageInfo"] } => ({
   nodes,
