@@ -1,64 +1,66 @@
 # PR Inbox
 
-指定ユーザーの Open PR を、stack ツリーと同じ順序のレビュー状況一覧でターミナルに表示する。GitHub への書き込みは行わない。
+English | [日本語](./README.ja.md)
 
-## 必要なもの
+Shows a given user's open PRs in the terminal as a stack tree, followed by a review status list in the same order. It never writes to GitHub.
 
-- Node.js 24 以上
-- GitHub CLI (`gh`)。対象リポジトリを読み取れるアカウントで `gh auth login` を済ませておく
+## Requirements
 
-## 使用方法
+- Node.js 24 or later
+- GitHub CLI (`gh`), logged in with `gh auth login` using an account that can read the target repository
+
+## Usage
 
 ```bash
 npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```
 
-`npm install -g pr-inbox` でインストールした場合は `pr-inbox` で実行できる。
+If installed with `npm install -g pr-inbox`, run it as `pr-inbox`.
 
-`YOUR_GITHUB_USERNAME` は確認したい GitHub ユーザー名に置き換える。ユーザー名は必須。
+Replace `YOUR_GITHUB_USERNAME` with the GitHub username to check. The username is required.
 
-| オプション | 内容                                                                        |
-| ---------- | --------------------------------------------------------------------------- |
-| `--repo`   | 対象リポジトリ。省略するとカレントディレクトリの git リポジトリを対象にする |
-| `--trunk`  | 宛先ブランチ。省略すると対象リポジトリのデフォルトブランチを使う            |
+| Option    | Description                                                                |
+| --------- | -------------------------------------------------------------------------- |
+| `--repo`  | Target repository. Defaults to the git repository in the current directory |
+| `--trunk` | Base branch. Defaults to the target repository's default branch            |
 
-カレントディレクトリが git リポジトリでなく `--repo` もない場合、またはデフォルトブランチを取得できず `--trunk` もない場合はエラーにする。
+It exits with an error if the current directory is not a git repository and `--repo` is not given, or if the default branch cannot be determined and `--trunk` is not given.
 
-通信中は、Open PR 一覧や取得対象の PR 番号を標準エラー出力に表示する。ツリーと一覧は標準出力に出るため、パイプ出力に進捗ログは混ざらない。
+While fetching, it prints progress, such as fetching the open PR list and the PR numbers being fetched, to standard error. The tree and the list go to standard output, so progress logs never mix into piped output.
 
-## 表示
+## Output
 
-`Stack` は PR の親子関係を示す。他の作者の親 PR も含み、`[parent]` を付ける。タイトルは省略しない。
+`Stack` shows the parent-child relationships between PRs. It includes parent PRs by other authors, marked with `[parent]`. Titles are never truncated.
 
-`PRs` はツリーと同じ順序の一覧。
+`PRs` is a list in the same order as the tree.
 
-ツリーと一覧の PR 番号だけに OSC 8 のリンクを付ける。対応ターミナルから PR を開ける。パイプ出力にはリンクの制御文字を付けない。
+Only the PR numbers in the tree and the list get OSC 8 hyperlinks, so you can open PRs from supporting terminals. No link control sequences are added to piped output.
 
-| 列           | 内容                                                                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| PR           | PR 番号                                                                                                                                   |
-| Title        | PR タイトル                                                                                                                               |
-| 宛先ブランチ | 宛先ブランチ宛。見出しには宛先ブランチ名（`main` など）を表示する                                                                         |
-| Conflict     | 宛先ブランチとのコンフリクトがある                                                                                                        |
-| Approved     | 作者・Bot を除く人による承認があり、変更要求が残っていない                                                                                |
-| Fixed        | 最新コメントより後にマージ以外のコミットがある                                                                                            |
-| Commit       | 最新のマージ以外のコミットからの経過時間                                                                                                  |
-| Comment      | 最新コメントからの経過時間                                                                                                                |
-| Reviewer     | レビュー依頼先とレビューした人を重複なくアルファベット順に表示。複数人なら先頭5文字、1人ならフル表示。区切りは `, `。どちらもなければ `-` |
+| Column      | Description                                                                                                                                                                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PR          | PR number                                                                                                                                                                                                                      |
+| Title       | PR title                                                                                                                                                                                                                       |
+| Base branch | Targets the base branch. The header shows the base branch name (such as `main`)                                                                                                                                                |
+| Conflict    | Has conflicts with the base branch                                                                                                                                                                                             |
+| Approved    | Approved by someone other than the author and bots, with no outstanding change requests                                                                                                                                        |
+| Fixed       | Has a non-merge commit after the latest comment                                                                                                                                                                                |
+| Commit      | Time since the latest non-merge commit                                                                                                                                                                                         |
+| Comment     | Time since the latest comment                                                                                                                                                                                                  |
+| Reviewer    | Requested reviewers and people who reviewed, deduplicated and sorted alphabetically. With multiple people, shows the first 5 characters of each name; with one person, the full name. Separated by `, `. `-` if there are none |
 
-名前を省略した場合は、一覧の下の `Reviewers` に省略名と元の名前の対応表を表示する。同じ省略名に複数の名前が該当する場合は併記する。
+When names are abbreviated, `Reviewers` below the list shows a table mapping each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
 
-宛先ブランチ・`Conflict`・`Approved`・`Fixed` の値は右揃えで、該当時に `✓`、非該当時は `-`、取得不明時は `?`。Conflict の計算中も `?` にする。コメントがない PR の `Fixed` も `-` になる。`Fixed` は日時の比較であり、指摘内容やスレッドの解決状態は判定しない。
+Values in the base branch, `Conflict`, `Approved`, and `Fixed` columns are right-aligned: `✓` if applicable, `-` if not, and `?` if unknown. `Conflict` also shows `?` while GitHub is still computing it. `Fixed` is `-` for PRs without comments. `Fixed` only compares timestamps; it does not judge the content of review comments or whether threads are resolved.
 
-対応ターミナルでは見出しを太字、ツリーのタイトルを薄色、一覧の項目名行を薄色＋太字にする。宛先ブランチ宛かつ Approved でコンフリクトなしが確認できた PR は、一覧の番号とタイトルを黄緑にする。`✓` は緑（Conflict は赤）、`-` は薄色、`?` は黄で表示する。パイプ出力には ANSI の色を付けない。`NO_COLOR=1` でも色を無効化できる。
+In supporting terminals, headings are bold, titles in the tree are dim, and the header row of the list is dim and bold. PRs that target the base branch, are approved, and are confirmed to have no conflicts have their number and title shown in bright green in the list. `✓` is green (red for `Conflict`), `-` is dim, and `?` is yellow. No ANSI colors are added to piped output. Colors can also be disabled with `NO_COLOR=1`.
 
-コメントは作者・Bot を除くレビュー本文、スレッド返信、一般コメントを対象にする。コミットは親が二つ以上あるマージコミットを除外し、コミット日時で比較する。
+Comments cover review bodies, thread replies, and general comments, excluding those by the author and bots. Commits exclude merge commits (commits with two or more parents) and are compared by commit date.
 
-時間は `10d`・`3h`・`5m` のように右詰めで表示する。`d` は日、`h` は時間、`m` は分。単位未満は切り捨て、負数は未来の日時を示す。日時がなければ `-`。
+Times are right-aligned, like `10d`, `3h`, and `5m`, where `d` is days, `h` is hours, and `m` is minutes. Values are rounded down to the unit, and negative values indicate future timestamps. `-` if there is no timestamp.
 
-取得範囲が不完全な場合は、判定できない項目を `?` にする。Reviewer の取得不明は `Unknown`。取得失敗は `Warning` として表示する。Open PR が 500 件以上ある場合は merge 順を決められないため、エラーにする。
+When the fetched data is incomplete, items that cannot be determined are shown as `?`. If the reviewers cannot be determined, `Reviewer` shows `Unknown`. Fetch failures are shown as `Warning`. If there are 500 or more open PRs, it exits with an error because the merge order cannot be determined.
 
-## 開発
+## Development
 
 ```bash
 mise install
@@ -67,16 +69,16 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。
+`pnpm check` runs format checking (`pnpm format:check`), lint (`pnpm lint`), type checking (`pnpm typecheck`), and tests (`pnpm test`). Format the code with `pnpm format`. Lint treats warnings as failures.
 
-`pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepublishOnly` で `pnpm check` を、`prepack` でビルドを自動的に実行し、`dist/` だけを公開する。
+`pnpm build` outputs JavaScript to `dist/`. When publishing to npm, `prepublishOnly` runs `pnpm check` and `prepack` runs the build automatically, and only `dist/` is published.
 
-開発では `mise.toml` で指定した Node.js 26.11.1 を使い、TypeScript の型注釈を取り除いてソースを直接実行できる。
+For development, Node.js 26.11.1 specified in `mise.toml` can run the source directly by stripping TypeScript type annotations.
 
 ```bash
 node index.mts [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```
 
-## ライセンス
+## License
 
 [MIT](./LICENSE)
