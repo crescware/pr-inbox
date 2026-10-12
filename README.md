@@ -63,10 +63,13 @@ npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 ```bash
 mise install
 pnpm install
+pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+`pnpm format:check` は oxfmt で整形のずれを検出する。`pnpm format` で整形する。
 
 `pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepack` で自動的にビルドし、`dist/` だけを公開する。
 
