@@ -11,8 +11,10 @@ import {
   render,
   type Detail,
   type PR,
+  type Target,
 } from "./index.mts";
 
+const target: Target = { repo: "org/repo", trunk: "main" };
 const empty = <T>(
   nodes: T[] = [],
 ): { nodes: T[]; pageInfo: Detail["reviews"]["pageInfo"] } => ({
@@ -60,6 +62,60 @@ const review = (
   body,
   submittedAt,
 });
+type GhResult = { status: number; stdout: string; stderr?: string };
+const repoView = (nameWithOwner: string, branch: string | null): GhResult => ({
+  status: 0,
+  stdout: JSON.stringify({
+    nameWithOwner,
+    defaultBranchRef: branch === null ? null : { name: branch },
+  }),
+});
+/** gh を差し替えた子プロセスで main を実行し、gh に渡した引数も返す */
+const runMain = (
+  args: string[],
+  prs: PR[] = [],
+  view: GhResult = repoView("org/repo", "main"),
+): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+  calls: string[][];
+} => {
+  const script = new URL("./index.mts", import.meta.url).href;
+  const details = Object.fromEntries(
+    prs.map((p) => ["p" + p.number, p.detail]),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import childProcess from "node:child_process";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+const calls = [];
+process.on("exit", () => fs.writeSync(3, JSON.stringify(calls)));
+childProcess.spawnSync = (command, args) => {
+  if (command !== "gh") throw new Error("Unexpected command: " + command);
+  calls.push(args);
+  if (args[0] === "repo") return ${JSON.stringify(view)};
+  return { status: 0, stdout: JSON.stringify(args[0] === "pr"
+    ? ${JSON.stringify(prs)}
+    : { data: { repository: ${JSON.stringify(details)} } }) };
+};
+syncBuiltinESMExports();
+const { main } = await import(${JSON.stringify(script)});
+main(${JSON.stringify(args)});`,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe", "pipe"] },
+  );
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    calls: JSON.parse(String(result.output[3])),
+  };
+};
 test("Bot と PR 作者の Approve は集計しない", () => {
   const p = pr();
   p.detail.reviews.nodes = [
@@ -264,30 +320,34 @@ test("PR 番号に関係なく親を先に並べ、独立した stack を分け�
   const child = pr(3, "parent", "child");
   const other = pr(51);
   expect(
-    mergeOrder([child, other, parent], "author").map((p) => p.number),
+    mergeOrder([child, other, parent], "author", "main").map((p) => p.number),
   ).toEqual([4, 3, 51]);
 });
 test("main から release へのリリース PR を main 宛 PR の親にしない", () => {
   const release = pr(38, "release", "main");
   release.author.login = "another-author";
-  expect(mergeOrder([pr(), release], "author").map((p) => p.number)).toEqual([
-    1,
-  ]);
+  expect(
+    mergeOrder([pr(), release], "author", "main").map((p) => p.number),
+  ).toEqual([1]);
 });
 test("他の作者の親 PR は含めるが fork の同名ブランチは親にしない", () => {
   const parent = pr(2, "main", "parent");
   parent.author.login = "another-author";
   expect(
-    mergeOrder([pr(1, "parent"), parent], "author").map((p) => p.number),
+    mergeOrder([pr(1, "parent"), parent], "author", "main").map(
+      (p) => p.number,
+    ),
   ).toEqual([2, 1]);
   parent.isCrossRepository = true;
   expect(
-    mergeOrder([pr(1, "parent"), parent], "author").map((p) => p.number),
+    mergeOrder([pr(1, "parent"), parent], "author", "main").map(
+      (p) => p.number,
+    ),
   ).toEqual([1]);
 });
 test("stack が循環していたら merge 順を捏造せずエラーにする", () => {
   expect(() =>
-    mergeOrder([pr(1, "b", "a"), pr(2, "a", "b")], "author"),
+    mergeOrder([pr(1, "b", "a"), pr(2, "a", "b")], "author", "main"),
   ).toThrow(/Stack cycle/);
 });
 test("main 宛と Approved を別々のチェックで表示する", () => {
@@ -295,7 +355,7 @@ test("main 宛と Approved を別々のチェックで表示する", () => {
   const child = pr(2, "feature", "child");
   root.detail.reviews.nodes = [review("APPROVED")];
   child.detail.reviews.nodes = [review("APPROVED")];
-  const output = render([child, root], "author");
+  const output = render([child, root], "author", target);
   const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
   expect(rows[0]?.match(/✓/g)).toHaveLength(2);
   expect(rows[1]?.match(/✓/g)).toHaveLength(1);
@@ -306,9 +366,11 @@ test("指定した作者を大文字小文字に関係なく選び、他の作�
   const child = pr(1, "parent", "child");
   child.author.login = "contributor";
   expect(
-    mergeOrder([pr(3), child, parent], "Contributor").map((p) => p.number),
+    mergeOrder([pr(3), child, parent], "Contributor", "main").map(
+      (p) => p.number,
+    ),
   ).toEqual([2, 1]);
-  expect(mergeOrder([parent], "contributor")).toEqual([]);
+  expect(mergeOrder([parent], "contributor", "main")).toEqual([]);
 });
 test("指定した作者をヘッダーに表示し、他の作者の親 PR は明示する", () => {
   const parent = pr(2, "main", "parent");
@@ -318,7 +380,7 @@ test("指定した作者をヘッダーに表示し、他の作者の親 PR は�
   root.author.login = "contributor";
   parent.detail.reviews.nodes = [review("APPROVED")];
   root.detail.reviews.nodes = [review("APPROVED")];
-  const output = render([child, parent, root, pr(4)], "Contributor");
+  const output = render([child, parent, root, pr(4)], "Contributor", target);
   expect(output.split("\n")[0]).toBe("org/repo / Contributor");
   expect(output.match(/\[parent\]/g)).toHaveLength(2);
   expect(output).not.toContain("#4");
@@ -337,7 +399,11 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
     "端末幅が狭くても絶対に省略しないとても長い日本語と English の件名".repeat(
       3,
     );
-  const output = render([other, leaf, child, sibling, parent], "author");
+  const output = render(
+    [other, leaf, child, sibling, parent],
+    "author",
+    target,
+  );
   const [tree, list] = output.split("\nPRs\n");
   expect(tree?.trimEnd()).toBe(
     [
@@ -365,7 +431,7 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   ).toEqual(["#4", "#3", "#6", "#5", "#51"]);
 });
 test("対象 PR がなければ空のツリーと一覧を安全に表示する", () => {
-  const output = render([], "author");
+  const output = render([], "author", target);
   expect(output).toContain("No open PRs");
   expect(output).toContain("\nPRs\n");
 });
@@ -400,6 +466,7 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
   const output = render(
     [checked, unchecked, noComments, unknown],
     "author",
+    target,
     [],
     Date.parse("2026-10-09T12:00:00Z"),
   );
@@ -438,6 +505,7 @@ test("時間の列を桁数に関係なく右詰めする", () => {
   const output = render(
     [first, second],
     "author",
+    target,
     [],
     Date.parse("2026-10-09T12:00:00Z"),
   );
@@ -460,7 +528,8 @@ test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", 
     title: "Unknown",
     detail: undefined,
   };
-  const [header = "", ...rows] = render([checked, unchecked, unknown], "author")
+  const output = render([checked, unchecked, unknown], "author", target);
+  const [header = "", ...rows] = output
     .split("\n")
     .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
   const columns = ["main", "Conflict", "Approved", "Fixed"].map(
@@ -495,7 +564,7 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   reviewed.title = "レビュー済みのタイトル";
   reviewed.detail.reviews.nodes = [review("COMMENTED")];
   const unknown: PR = { ...pr(4), title: "不明のタイトル", detail: undefined };
-  const output = render([child, parent, reviewed, unknown], "author");
+  const output = render([child, parent, reviewed, unknown], "author", target);
   expect(output).toContain("[parent] 親のタイトル");
   expect(output).not.toContain("Not requested");
   expect(output).toContain("reviewer");
@@ -507,7 +576,7 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   );
   expect(withoutTitles).not.toMatch(/[^\u0020-\u007E\n✓├─└│]/u);
   expect(output.trimEnd().split("\n").at(-1)).toMatch(/^#4\s/);
-  expect(render([], "author", ["Fetch failed"])).toMatch(
+  expect(render([], "author", target, ["Fetch failed"])).toMatch(
     /\nWarning: Fetch failed$/,
   );
 });
@@ -535,7 +604,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
     calculating,
   ];
   const now = Date.parse("2026-10-09T12:00:00Z");
-  const plain = render(prs, "author", [], now);
+  const plain = render(prs, "author", target, [], now);
   for (const [isTTY, forceColor, noColor, colored] of [
     [true, "1", undefined, true],
     [false, "1", undefined, false],
@@ -550,7 +619,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
 import { render } from ${JSON.stringify(script)};
 process.stdout.isTTY = ${isTTY};
 process.stdout.getColorDepth = WriteStream.prototype.getColorDepth;
-process.stdout.write(render(${JSON.stringify(prs)}, "author", [], ${now}));`,
+process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)}, [], ${now}));`,
       ],
       {
         encoding: "utf8",
@@ -621,32 +690,10 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", [], ${now}));`,
   }
 });
 test("通信中の取得対象を標準エラー出力に表示し、一覧には混ぜない", () => {
-  const script = new URL("./index.mts", import.meta.url).href;
   const prs = Array.from({ length: 6 }, (_, i) =>
     pr(i + 1, "main", "feature-" + (i + 1)),
   );
-  const details = Object.fromEntries(
-    prs.map((p) => ["p" + p.number, p.detail]),
-  );
-  const result = spawnSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `import childProcess from "node:child_process";
-import { syncBuiltinESMExports } from "node:module";
-childProcess.spawnSync = (command, args) => {
-  if (command !== "gh") throw new Error("Unexpected command: " + command);
-  return { status: 0, stdout: JSON.stringify(args[0] === "pr"
-    ? ${JSON.stringify(prs)}
-    : { data: { repository: ${JSON.stringify(details)} } }) };
-};
-syncBuiltinESMExports();
-const { main } = await import(${JSON.stringify(script)});
-main(["author"]);`,
-    ],
-    { encoding: "utf8" },
-  );
+  const result = runMain(["author"], prs);
   expect(result.status).toBe(0);
   expect(result.stderr.trim().split("\n")).toEqual([
     "Fetching open PRs...",
@@ -658,6 +705,111 @@ main(["author"]);`,
   expect(result.stdout).not.toContain("Fetching");
   expect(result.stdout.endsWith("\n\n")).toBe(true);
   expect(result.stdout.endsWith("\n\n\n")).toBe(false);
+});
+test("オプションがなければカレントディレクトリのリポジトリとデフォルトブランチを使う", () => {
+  const result = runMain(["author"], [], repoView("current/repo", "trunk"));
+  expect(result.status).toBe(0);
+  expect(result.calls[0]).toEqual([
+    "repo",
+    "view",
+    "--json",
+    "nameWithOwner,defaultBranchRef",
+  ]);
+  expect(result.calls[1]?.slice(0, 4)).toEqual([
+    "pr",
+    "list",
+    "--repo",
+    "current/repo",
+  ]);
+  expect(result.stdout.split("\n")[0]).toBe("current/repo / author");
+  expect(result.stdout).toMatch(/PR\s+Title\s+trunk\s+Conflict/);
+});
+test("--repo を指定するとそのリポジトリのデフォルトブランチを使う", () => {
+  const result = runMain(
+    ["--repo", "other/repo", "author"],
+    [],
+    repoView("other/repo", "trunk"),
+  );
+  expect(result.status).toBe(0);
+  expect(result.calls[0]).toEqual([
+    "repo",
+    "view",
+    "other/repo",
+    "--json",
+    "nameWithOwner,defaultBranchRef",
+  ]);
+  expect(result.calls[1]?.slice(0, 4)).toEqual([
+    "pr",
+    "list",
+    "--repo",
+    "other/repo",
+  ]);
+  expect(result.stdout).toMatch(/PR\s+Title\s+trunk\s+Conflict/);
+});
+test("--trunk を指定するとデフォルトブランチより優先する", () => {
+  const result = runMain(
+    ["--trunk", "release", "author"],
+    [],
+    repoView("current/repo", "trunk"),
+  );
+  expect(result.status).toBe(0);
+  expect(result.calls[0]?.slice(0, 3)).toEqual(["repo", "view", "--json"]);
+  expect(result.stdout.split("\n")[0]).toBe("current/repo / author");
+  expect(result.stdout).toMatch(/PR\s+Title\s+release\s+Conflict/);
+});
+test("--repo と --trunk を両方指定すると GitHub にリポジトリ情報を問い合わせない", () => {
+  const result = runMain(["--repo=other/repo", "--trunk=release", "author"]);
+  expect(result.status).toBe(0);
+  expect(result.calls.map((args) => args[0])).toEqual(["pr"]);
+  expect(result.stdout.split("\n")[0]).toBe("other/repo / author");
+  expect(result.stdout).toMatch(/PR\s+Title\s+release\s+Conflict/);
+});
+test("カレントディレクトリからリポジトリを特定できなければ --repo を案内する", () => {
+  const result = runMain(["author"], [], {
+    status: 1,
+    stdout: "",
+    stderr: "fatal: not a git repository",
+  });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    "use --repo OWNER/REPO: fatal: not a git repository",
+  );
+  expect(result.calls).toHaveLength(1);
+});
+test("デフォルトブランチを取得できなければ --trunk を案内する", () => {
+  const result = runMain(["author"], [], repoView("current/repo", null));
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    "Cannot determine the default branch of current/repo; use --trunk BRANCH",
+  );
+  expect(result.calls).toHaveLength(1);
+});
+test("リポジトリ名はクエリに埋め込まず GraphQL の変数で渡す", () => {
+  const result = runMain(
+    ["--repo", "other/repo", "--trunk", "main", "author"],
+    [pr()],
+  );
+  expect(result.status).toBe(0);
+  const graphql = result.calls.find((args) => args[0] === "api") ?? [];
+  expect(graphql.slice(2, 6)).toEqual(["-f", "owner=other", "-f", "name=repo"]);
+  expect(graphql.find((arg) => arg.startsWith("query="))).not.toContain(
+    "other",
+  );
+});
+test("宛先ブランチの列はブランチ名を見出しにし、値を見出しの右端に揃える", () => {
+  const p = pr(1, "production");
+  p.title = "Production";
+  const output = render([p], "author", {
+    repo: "org/repo",
+    trunk: "production",
+  });
+  const [header = "", row = ""] = output
+    .split("\n")
+    .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
+  expect(header).toMatch(/Title\s+production\s+Conflict/);
+  expect(row[header.indexOf("production") + "production".length - 1]).toBe(
+    "✓",
+  );
 });
 test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下にまとめる", () => {
   const multiple = pr(1);
@@ -672,7 +824,7 @@ test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下
     { login: "alpha-reviewer" },
     { login: "delta-reviewer" },
   ];
-  const output = render([multiple, single, repeated], "author");
+  const output = render([multiple, single, repeated], "author", target);
   const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
   expect(rows[0]).toMatch(/alpha, bravo$/);
   expect(rows[1]).toMatch(/single-reviewer$/);
@@ -694,18 +846,18 @@ test("1人だけの場合と5文字以下の名前だけの場合は対応表を
   single.reviewRequests = [{ login: "single-reviewer" }];
   const short = pr(2);
   short.reviewRequests = [{ login: "beta" }, { login: "alpha" }];
-  const output = render([single, short], "author");
+  const output = render([single, short], "author", target);
   expect(output).not.toContain("\nReviewers\n");
   expect(output).toMatch(/alpha, beta\n$/);
 });
 test("先頭5文字が同じ Reviewer は対応表で全員を併記する", () => {
   const p = pr();
   p.reviewRequests = [{ login: "reviewer-b" }, { login: "reviewer-a" }];
-  const output = render([p], "author");
+  const output = render([p], "author", target);
   expect(output).toContain("revie, revie\n");
   expect(output).toContain("revie  reviewer-a, reviewer-b\n");
 });
-test("ユーザー名を一つ必須とし、省略・オプション・不正な名前は GitHub 取得前に拒否する", () => {
+test("ユーザー名を一つ必須とし、未知のオプション・不正な名前やリポジトリは GitHub 取得前に拒否する", () => {
   const script = fileURLToPath(new URL("./index.mts", import.meta.url));
   for (const args of [
     [],
@@ -713,13 +865,20 @@ test("ユーザー名を一つ必須とし、省略・オプション・不正�
     ["--ack", "1"],
     ["author", "contributor"],
     ["bad/name"],
+    ["--repo"],
+    ["--repo", "author"],
+    ["--repo", "invalid", "author"],
+    ["--repo", "a/b/c", "author"],
+    ["--trunk", "", "author"],
   ]) {
     const result = spawnSync(process.execPath, [script, ...args], {
       encoding: "utf8",
       env: { ...process.env, PATH: "/no-gh-available" },
     });
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Usage: node index.mts <GitHub username>");
+    expect(result.stderr).toContain(
+      "Usage: node index.mts [--repo OWNER/REPO] [--trunk BRANCH] <GitHub username>",
+    );
   }
 });
 test("端末制御文字と文字方向制御文字を除去する", () => {
