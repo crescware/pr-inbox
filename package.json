@@ -24,6 +24,9 @@
     "test": "vitest run",
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "temporal-polyfill-lite": "0.4.3"
+  },
   "devDependencies": {
     "@types/node": "26.6.5",
     "oxfmt": "0.72.0",
