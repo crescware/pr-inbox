@@ -1,6 +1,7 @@
 import { clean } from "./clean.mts";
 import { gh } from "./gh.mts";
 import { mergeOrder } from "./merge-order.mts";
+import { refreshMergeable } from "./refresh-mergeable.mts";
 import type { Detail, PR, Target } from "./types.mts";
 
 export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings: string[] } => {
@@ -75,6 +76,7 @@ export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings:
       );
     }
   }
+  warnings.push(...refreshMergeable(target, ordered));
   return {
     prs: all.filter((p) => !p.detail || p.detail.state === "OPEN"),
     warnings,
