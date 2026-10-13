@@ -6,16 +6,17 @@ import { gh } from "./gh.mts";
 import type { PR } from "./types.mts";
 
 vi.mock("./gh.mts", () => ({ gh: vi.fn() }));
+vi.mock("./sleep.mts", () => ({ sleep: vi.fn() }));
 
 /** gh pr list と gh api graphql の応答を prs から作る */
-const respond = (prs: PR[], graphql?: () => unknown) => {
+const respond = (prs: PR[], graphql?: (args: string[]) => unknown) => {
   vi.mocked(gh).mockImplementation((args: string[]) => {
     if (args[0] === "pr") {
       const list = prs.map((p) => ({ ...p, detail: undefined }));
       return JSON.parse(JSON.stringify(list));
     }
     if (graphql) {
-      return graphql();
+      return graphql(args);
     }
     const details = Object.fromEntries(prs.map((p) => ["p" + p.number, p.detail]));
     return { data: { repository: details } };
@@ -96,4 +97,16 @@ test("Open PR が 500 件以上あると merge 順を決められないのでエ
   expect(() => fetchPRs(target, "author")).toThrow(
     "Cannot determine merge order with 500 or more open PRs",
   );
+});
+test("コンフリクトの判定が計算中の PR は、問い合わせ直した結果を使う", () => {
+  const p = pr(1);
+  p.detail.mergeable = "UNKNOWN";
+  respond([p], (args) =>
+    args.some((arg) => arg.includes("){mergeable}"))
+      ? { data: { repository: { p1: { mergeable: "CONFLICTING" } } } }
+      : { data: { repository: { p1: p.detail } } },
+  );
+  const result = fetchPRs(target, "author");
+  expect(result.prs[0]?.detail?.mergeable).toBe("CONFLICTING");
+  expect(result.warnings).toEqual([]);
 });

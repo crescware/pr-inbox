@@ -50,7 +50,7 @@ Only the PR numbers in the tree and the list get OSC 8 hyperlinks, so you can op
 
 When names are abbreviated, `Reviewers` below the list shows a table mapping each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
 
-Values in the base branch, `Conflict`, `Approved`, and `Fixed` columns are right-aligned: `✓` if applicable, `-` if not, and `?` if unknown. `Conflict` also shows `?` while GitHub is still computing it. `Fixed` is `-` for PRs without comments. `Fixed` only compares timestamps; it does not judge the content of review comments or whether threads are resolved.
+Values in the base branch, `Conflict`, `Approved`, and `Fixed` columns are right-aligned: `✓` if applicable, `-` if not, and `?` if unknown. If GitHub is still computing whether a PR has conflicts, it re-queries up to 3 times at 2-second intervals, and `Conflict` shows `?` if the result is still unavailable. `Fixed` is `-` for PRs without comments. `Fixed` only compares timestamps; it does not judge the content of review comments or whether threads are resolved.
 
 In supporting terminals, headings are bold, titles in the tree are dim, and the header row of the list is dim and bold. PRs that target the base branch, are approved, and are confirmed to have no conflicts have their number and title shown in bright green in the list. `✓` is green (red for `Conflict`), `-` is dim, and `?` is yellow. No ANSI colors are added to piped output. Colors can also be disabled with `NO_COLOR=1`.
 
