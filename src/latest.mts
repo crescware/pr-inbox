@@ -1,4 +1,11 @@
+import { Temporal } from "temporal-polyfill-lite";
+
+import { instant } from "./instant.mts";
+
 export const latest = (values: (string | null | undefined)[]): string | null => {
-  const valid = values.filter((v): v is string => Boolean(v && Number.isFinite(Date.parse(v))));
-  return valid.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  const valid = values.flatMap((value) => {
+    const time = instant(value);
+    return value && time ? [{ value, time }] : [];
+  });
+  return valid.sort((a, b) => Temporal.Instant.compare(b.time, a.time))[0]?.value ?? null;
 };

@@ -1,3 +1,5 @@
+import { Temporal } from "temporal-polyfill-lite";
+
 import { cell } from "./cell.mts";
 import { clean } from "./clean.mts";
 import { facts } from "./facts.mts";
@@ -16,7 +18,7 @@ export const render = (
   author: string,
   target: Target,
   warnings: string[] = [],
-  now = Date.now(),
+  now: Temporal.Instant = Temporal.Now.instant(),
   timeZone?: string,
 ): string => {
   const ordered = mergeOrder(all, author, target.trunk);

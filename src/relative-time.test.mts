@@ -1,9 +1,10 @@
+import { Temporal } from "temporal-polyfill-lite";
 import { expect, test } from "vitest";
 
 import { relativeTime } from "./relative-time.mts";
 
 /** 2026-10-13 10:17:43 JST */
-const now = Date.parse("2026-10-13T01:17:43Z");
+const now = Temporal.Instant.from("2026-10-13T01:17:43Z");
 const tokyo = (value: string) => relativeTime(value, now, "Asia/Tokyo");
 
 test("日付が変わっていれば、経過時間ではなく日付の差を d で表示する", () => {
@@ -25,7 +26,7 @@ test("同じ日なら経過時間を m・h で表示し、単位未満は切り�
     // 10/13 00:00 JST。経過は 10 時間 17 分
     [617, "10h"],
   ] as const) {
-    expect(tokyo(new Date(now - minutes * 60_000).toISOString())).toBe(expected);
+    expect(tokyo(now.subtract({ minutes }).toString())).toBe(expected);
   }
 });
 test("未来の日時は負の値で表示する", () => {
