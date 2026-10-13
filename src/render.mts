@@ -3,6 +3,7 @@ import { Temporal } from "temporal-polyfill-lite";
 import { cell } from "./cell.mts";
 import { clean } from "./clean.mts";
 import { facts } from "./facts.mts";
+import { githubAccount } from "./github-account.mts";
 import { indicator } from "./indicator.mts";
 import { mergeOrder } from "./merge-order.mts";
 import { parentOf } from "./parent-of.mts";
@@ -92,7 +93,7 @@ export const render = (
       return "Unknown";
     }
     if (names.length < 2) {
-      return names.join("") || "-";
+      return names.length ? githubAccount(names[0] ?? "") : styled("dim", "-");
     }
     return names
       .map((name) => {
@@ -100,7 +101,7 @@ export const render = (
         if (short !== name) {
           abbreviations.set(short, reviewerNames([...(abbreviations.get(short) ?? []), name]));
         }
-        return short;
+        return githubAccount(name, short);
       })
       .join(", ");
   };
@@ -128,7 +129,7 @@ export const render = (
         indicator(f.after === "不明" ? null : f.after === "あり", 5),
         cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
         cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
-        cell(reviewers(f.reviewers), 0),
+        reviewers(f.reviewers),
       ].join(" "),
     );
   });
@@ -136,7 +137,13 @@ export const render = (
   if (abbreviations.size) {
     lines.push(styled("bold", "Reviewers"), "");
     for (const short of reviewerNames([...abbreviations.keys()])) {
-      lines.push(cell(short, 5) + "  " + (abbreviations.get(short) ?? []).join(", "));
+      const names = abbreviations.get(short) ?? [];
+      lines.push(
+        githubAccount(names[0] ?? short, short) +
+          cell("", 5 - width(short)) +
+          "  " +
+          names.map((name) => githubAccount(name)).join(", "),
+      );
     }
     lines.push("");
   }
