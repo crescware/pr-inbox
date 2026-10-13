@@ -64,8 +64,9 @@ export const render = (
   }
   lines.push("", styled("bold", "PRs"));
   const titleWidth = Math.max(width("Title"), ...displayOrder.map((pr) => width(title(pr))));
-  const diff = (pr: PR): string => "+" + pr.additions + " -" + pr.deletions;
-  const diffWidth = Math.max(width("Diff"), ...displayOrder.map((pr) => width(diff(pr))));
+  const additionsWidth = Math.max(2, ...displayOrder.map((pr) => width("+" + pr.additions)));
+  const deletionsWidth = Math.max(2, ...displayOrder.map((pr) => width("-" + pr.deletions)));
+  const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
   const trunkWidth = width(clean(target.trunk));
   lines.push(
     "",
@@ -105,6 +106,8 @@ export const render = (
   };
   displayOrder.forEach((pr) => {
     const f = facts(pr);
+    const additions = "+" + pr.additions;
+    const deletions = "-" + pr.deletions;
     const highlight =
       pr.baseRefName === target.trunk && f.approved === true && f.conflict === false
         ? "greenBright"
@@ -113,10 +116,12 @@ export const render = (
       [
         styled(highlight, prNumber(target.repo, pr.number, 7)),
         styled(pr.isDraft ? "dim" : highlight, cell(title(pr), titleWidth)),
-        styled("green", "+" + pr.additions) +
+        " ".repeat(additionsWidth - width(additions)) +
+          styled("green", additions) +
           " " +
-          styled("red", "-" + pr.deletions) +
-          " ".repeat(diffWidth - width(diff(pr))),
+          " ".repeat(deletionsWidth - width(deletions)) +
+          styled("red", deletions) +
+          " ".repeat(diffWidth - additionsWidth - 1 - deletionsWidth),
         indicator(pr.baseRefName === target.trunk, trunkWidth),
         indicator(f.conflict, 8, "red"),
         indicator(f.approved, 8),

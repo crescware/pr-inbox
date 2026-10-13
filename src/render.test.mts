@@ -134,6 +134,19 @@ test("時間の列を桁数に関係なく右詰めする", () => {
   expect(row1.indexOf("10h") + 3).toBe(header.indexOf("Commit") + 6);
   expect(row2.indexOf("1m") + 2).toBe(header.indexOf("Commit") + 6);
 });
+test("追加行数と削除行数をそれぞれ右詰めする", () => {
+  const large = pr(1);
+  large.additions = 2014;
+  large.deletions = 3205;
+  const small = pr(2);
+  small.additions = 65;
+  small.deletions = 2;
+  const rows = render([large, small], "author", target)
+    .split("\n")
+    .filter((line) => /^#\d+\s/.test(line));
+  expect(rows[0]).toContain("+2014 -3205");
+  expect(rows[1]).toContain("  +65    -2");
+});
 test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", () => {
   const checked = pr(1);
   checked.title = "Checked";
