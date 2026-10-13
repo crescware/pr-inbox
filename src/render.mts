@@ -64,6 +64,8 @@ export const render = (
   }
   lines.push("", styled("bold", "PRs"));
   const titleWidth = Math.max(width("Title"), ...displayOrder.map((pr) => width(title(pr))));
+  const diff = (pr: PR): string => "+" + pr.additions + " -" + pr.deletions;
+  const diffWidth = Math.max(width("Diff"), ...displayOrder.map((pr) => width(diff(pr))));
   const trunkWidth = width(clean(target.trunk));
   lines.push(
     "",
@@ -72,6 +74,7 @@ export const render = (
       [
         cell("PR", 7),
         cell("Title", titleWidth),
+        cell("Diff", diffWidth),
         cell(target.trunk, trunkWidth),
         cell("Conflict", 8),
         cell("Approved", 8),
@@ -109,7 +112,11 @@ export const render = (
     lines.push(
       [
         styled(highlight, prNumber(target.repo, pr.number, 7)),
-        styled(highlight, cell(title(pr), titleWidth)),
+        styled(pr.isDraft ? "dim" : highlight, cell(title(pr), titleWidth)),
+        styled("green", "+" + pr.additions) +
+          " " +
+          styled("red", "-" + pr.deletions) +
+          " ".repeat(diffWidth - width(diff(pr))),
         indicator(pr.baseRefName === target.trunk, trunkWidth),
         indicator(f.conflict, 8, "red"),
         indicator(f.approved, 8),
