@@ -42,6 +42,9 @@ test("対象リポジトリの Open PR を取得し、詳細を 5 件ずつ取�
     "--repo",
     "org/repo",
   ]);
+  expect(vi.mocked(gh).mock.calls[0]?.[0]).toContain(
+    "number,title,isDraft,additions,deletions,author,baseRefName,headRefName,isCrossRepository,reviewRequests",
+  );
   expect(gh).toHaveBeenCalledTimes(3);
   expect(progress()).toEqual([
     "Fetching open PRs...",

@@ -12,6 +12,9 @@ export const empty = <T,>(
 export const pr = (number = 1, base = "main", branch = "feature"): PR & { detail: Detail } => ({
   number,
   title: "テスト",
+  isDraft: false,
+  additions: 123,
+  deletions: 456,
   author: { login: "author" },
   baseRefName: base,
   headRefName: branch,

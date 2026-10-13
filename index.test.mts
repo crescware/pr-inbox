@@ -81,14 +81,14 @@ test("オプションがなければカレントディレクトリのリポジ�
   expect(result.calls[0]).toEqual(["repo", "view", "--json", "nameWithOwner,defaultBranchRef"]);
   expect(result.calls[1]?.slice(0, 4)).toEqual(["pr", "list", "--repo", "current/repo"]);
   expect(result.stdout.split("\n")[0]).toBe("current/repo / author");
-  expect(result.stdout).toMatch(/PR\s+Title\s+trunk\s+Conflict/);
+  expect(result.stdout).toMatch(/PR\s+Title\s+Diff\s+trunk\s+Conflict/);
 });
 test("--repo と --trunk で指定したリポジトリと宛先ブランチで一覧を表示する", () => {
   const result = runMain(["--repo=other/repo", "--trunk=release", "author"]);
   expect(result.status).toBe(0);
   expect(result.calls.map((args) => args[0])).toEqual(["pr"]);
   expect(result.stdout.split("\n")[0]).toBe("other/repo / author");
-  expect(result.stdout).toMatch(/PR\s+Title\s+release\s+Conflict/);
+  expect(result.stdout).toMatch(/PR\s+Title\s+Diff\s+release\s+Conflict/);
 });
 test("引数が不正なら GitHub に問い合わせずに使い方を表示して終了する", () => {
   const script = fileURLToPath(new URL("./index.mts", import.meta.url));

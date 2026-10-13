@@ -16,7 +16,7 @@ export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings:
     "--limit",
     "500",
     "--json",
-    "number,title,author,baseRefName,headRefName,isCrossRepository,reviewRequests",
+    "number,title,isDraft,additions,deletions,author,baseRefName,headRefName,isCrossRepository,reviewRequests",
   ]);
   if (all.length === 500) {
     throw new Error("Cannot determine merge order with 500 or more open PRs");

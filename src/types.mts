@@ -31,6 +31,9 @@ export type Detail = {
 export type PR = {
   number: number;
   title: string;
+  isDraft: boolean;
+  additions: number;
+  deletions: number;
   author: { login: string };
   baseRefName: string;
   headRefName: string;

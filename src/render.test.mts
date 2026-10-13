@@ -92,7 +92,7 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
   );
   const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
   expect(output).toMatch(
-    /PR\s+Title\s+main\s+Conflict\s+Approved\s+Fixed\s+Commit\s+Comment\s+Reviewer/,
+    /PR\s+Title\s+Diff\s+main\s+Conflict\s+Approved\s+Fixed\s+Commit\s+Comment\s+Reviewer/,
   );
   expect(output).not.toMatch(/^順\s/m);
   expect(output).not.toContain("コメント後commit");
@@ -180,6 +180,8 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
 });
 test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR では色を付けない", () => {
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
+  const draft = pr();
+  draft.isDraft = true;
   const missing = pr(3);
   missing.detail.commits.nodes = [];
   const approved = pr(4, "main", "approved");
@@ -193,7 +195,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
   calculating.detail.reviews.nodes = [review("APPROVED")];
   calculating.detail.mergeable = "UNKNOWN";
   const prs: PR[] = [
-    pr(),
+    draft,
     { ...pr(2), detail: undefined },
     missing,
     approved,
@@ -257,7 +259,8 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
         .split("\n")
         .find((line) => stripVTControlCharacters(line).startsWith("#1 "));
       expect(firstRow).toContain("テスト");
-      expect(firstRow).not.toContain("\u001B[2mテスト");
+      expect(firstRow).toContain("\u001B[2mテスト");
+      expect(firstRow).toContain("\u001B[32m+123\u001B[39m \u001B[31m-456\u001B[39m");
       const row = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).startsWith("#3 "));
@@ -280,7 +283,7 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
         .split("\n")
         .find((line) => stripVTControlCharacters(line).startsWith("#6 "));
       expect(conflictRow).toContain("\u001B[31m       ✓\u001B[39m");
-      expect(conflictRow?.split("\u001B[31m")).toHaveLength(2);
+      expect(conflictRow?.split("\u001B[31m")).toHaveLength(3);
     }
   }
 });
@@ -294,7 +297,7 @@ test("宛先ブランチの列はブランチ名を見出しにし、値を見�
   const [header = "", row = ""] = output
     .split("\n")
     .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
-  expect(header).toMatch(/Title\s+production\s+Conflict/);
+  expect(header).toMatch(/Title\s+Diff\s+production\s+Conflict/);
   expect(row[header.indexOf("production") + "production".length - 1]).toBe("✓");
 });
 test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下にまとめる", () => {
