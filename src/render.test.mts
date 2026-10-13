@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
+import { Temporal } from "temporal-polyfill-lite";
 import { expect, test } from "vitest";
 
 import { pr, review, target } from "./fixtures.mts";
@@ -86,7 +87,8 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
     "author",
     target,
     [],
-    Date.parse("2026-10-09T12:00:00Z"),
+    Temporal.Instant.from("2026-10-09T12:00:00Z"),
+    "UTC",
   );
   const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
   expect(output).toMatch(
@@ -116,7 +118,14 @@ test("時間の列を桁数に関係なく右詰めする", () => {
   second.title = "Second";
   second.detail.reviews.nodes = [review("COMMENTED", "指摘", "2026-10-09T11:51:00Z")];
   second.detail.commits.nodes[0].commit.committedDate = "2026-10-09T11:59:00Z";
-  const output = render([first, second], "author", target, [], Date.parse("2026-10-09T12:00:00Z"));
+  const output = render(
+    [first, second],
+    "author",
+    target,
+    [],
+    Temporal.Instant.from("2026-10-09T12:00:00Z"),
+    "UTC",
+  );
   const [header = "", row1 = "", row2 = ""] = output
     .split("\n")
     .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
@@ -192,8 +201,8 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
     conflicting,
     calculating,
   ];
-  const now = Date.parse("2026-10-09T12:00:00Z");
-  const plain = render(prs, "author", target, [], now);
+  const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+  const plain = render(prs, "author", target, [], now, "UTC");
   for (const [isTTY, forceColor, noColor, colored] of [
     [true, "1", undefined, true],
     [false, "1", undefined, false],
@@ -205,10 +214,11 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
         "--input-type=module",
         "-e",
         `import { WriteStream } from "node:tty";
+import { Temporal } from "temporal-polyfill-lite";
 import { render } from ${JSON.stringify(script)};
 process.stdout.isTTY = ${isTTY};
 process.stdout.getColorDepth = WriteStream.prototype.getColorDepth;
-process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)}, [], ${now}));`,
+process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)}, [], Temporal.Instant.from(${JSON.stringify(now.toString())}), "UTC"));`,
       ],
       {
         encoding: "utf8",

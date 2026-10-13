@@ -56,7 +56,7 @@ In supporting terminals, headings are bold, titles in the tree are dim, and the 
 
 Comments cover review bodies, thread replies, and general comments, excluding those by the author and bots. Commits exclude merge commits (commits with two or more parents) and are compared by commit date.
 
-Times are right-aligned, like `10d`, `3h`, and `5m`, where `d` is days, `h` is hours, and `m` is minutes. Values are rounded down to the unit, and negative values indicate future timestamps. `-` if there is no timestamp.
+Times are right-aligned, like `10d`, `3h`, and `5m`. If the date has changed, it shows the difference in calendar days with `d`, so a commit from the previous day shows `1d` even if less than 24 hours have passed. On the same day, it shows the elapsed time in hours (`h`) or minutes (`m`), rounded down. Dates are determined in the local time zone. Negative values indicate future timestamps. `-` if there is no timestamp.
 
 When the fetched data is incomplete, items that cannot be determined are shown as `?`. If the reviewers cannot be determined, `Reviewer` shows `Unknown`. Fetch failures are shown as `Warning`. If there are 500 or more open PRs, it exits with an error because the merge order cannot be determined.
 
@@ -69,7 +69,7 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` runs format checking (`pnpm format:check`), lint (`pnpm lint`), type checking (`pnpm typecheck`), and tests (`pnpm test`). Format the code with `pnpm format`. Lint treats warnings as failures.
+`pnpm check` runs format checking (`pnpm format:check`), lint (`pnpm lint`), type checking (`pnpm typecheck`), and tests (`pnpm test`). Format the code with `pnpm format`. Lint treats warnings as failures. `Date` is forbidden by lint; use `Temporal` from `temporal-polyfill-lite` instead.
 
 `pnpm build` outputs JavaScript to `dist/`. When publishing to npm, `prepublishOnly` runs `pnpm check` and `prepack` runs the build automatically, and only `dist/` is published.
 

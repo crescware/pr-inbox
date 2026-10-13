@@ -56,7 +56,7 @@ npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 
 コメントは作者・Bot を除くレビュー本文、スレッド返信、一般コメントを対象にする。コミットは親が二つ以上あるマージコミットを除外し、コミット日時で比較する。
 
-時間は `10d`・`3h`・`5m` のように右詰めで表示する。`d` は日、`h` は時間、`m` は分。単位未満は切り捨て、負数は未来の日時を示す。日時がなければ `-`。
+時間は `10d`・`3h`・`5m` のように右詰めで表示する。日付が変わっていれば日付の差を `d`（日）で表示し、24 時間未満でも前日なら `1d` になる。同じ日なら経過時間を `h`（時間）・`m`（分）で表示し、単位未満は切り捨てる。日付は実行環境のタイムゾーンで判定する。負数は未来の日時を示す。日時がなければ `-`。
 
 取得範囲が不完全な場合は、判定できない項目を `?` にする。Reviewer の取得不明は `Unknown`。取得失敗は `Warning` として表示する。Open PR が 500 件以上ある場合は merge 順を決められないため、エラーにする。
 
@@ -69,7 +69,7 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。
+`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。`Date` は lint で禁止しているので、代わりに `temporal-polyfill-lite` の `Temporal` を使う。
 
 `pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepublishOnly` で `pnpm check` を、`prepack` でビルドを自動的に実行し、`dist/` だけを公開する。
 

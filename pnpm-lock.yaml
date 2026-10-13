@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      temporal-polyfill-lite:
+        specifier: 0.4.3
+        version: 0.4.3
     devDependencies:
       '@types/node':
         specifier: 26.6.5
@@ -699,6 +703,9 @@ packages:
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
 
+  temporal-polyfill-lite@0.4.3:
+    resolution: {integrity: sha512-Lw/de9tydKmrU0icQy6Z+abX5mzDk4iqyt6Xp2iDDxY6SGISiuhuP3TcfWlYveM1FN1I7FjT5nG+Kh9eCiSnVg==}
+
   tinybench@6.2.1:
     resolution: {integrity: sha512-IAbQaPJIIdhVxi0mqy9lez1wEwje0UQf9F1vwtbelEG5Nbgn0nPOxCvU+mNeNS9gyJTAhrHp74CbUaSynQpZcQ==}
     engines: {node: '>=20.0.0'}
@@ -1228,6 +1235,8 @@ snapshots:
   source-map-js@1.2.2: {}
 
   std-env@4.3.0: {}
+
+  temporal-polyfill-lite@0.4.3: {}
 
   tinybench@6.2.1: {}
 

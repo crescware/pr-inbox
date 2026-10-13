@@ -1,3 +1,6 @@
+import { Temporal } from "temporal-polyfill-lite";
+
+import { instant } from "./instant.mts";
 import { latest } from "./latest.mts";
 import { reviewerNames } from "./reviewer-names.mts";
 import type { Actor, Facts, PR } from "./types.mts";
@@ -26,9 +29,11 @@ export const facts = (pr: PR): Facts => {
     (r) => human(r.author, pr.author.login) && r.state !== "PENDING",
   );
   const opinions = new Map<string, string>();
-  for (const r of [...reviews].sort(
-    (a, b) => Date.parse(a.submittedAt || "") - Date.parse(b.submittedAt || ""),
-  )) {
+  for (const r of [...reviews].sort((a, b) => {
+    const x = instant(a.submittedAt);
+    const y = instant(b.submittedAt);
+    return x && y ? Temporal.Instant.compare(x, y) : 0;
+  })) {
     if (r.author && ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(r.state)) {
       opinions.set(r.author.login, r.state);
     }
@@ -61,11 +66,13 @@ export const facts = (pr: PR): Facts => {
       .filter((c) => c.commit.parents.totalCount <= 1)
       .map((c) => c.commit.committedDate),
   );
+  const commitTime = instant(commitAt);
+  const commentTime = instant(commentAt);
   const after = commentsIncomplete
     ? "不明"
     : !commentAt
       ? "コメントなし"
-      : commitAt && Date.parse(commitAt) > Date.parse(commentAt)
+      : commitTime && commentTime && Temporal.Instant.compare(commitTime, commentTime) > 0
         ? "あり"
         : detail.commits.pageInfo.hasPreviousPage
           ? "不明"

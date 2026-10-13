@@ -1,16 +1,32 @@
-export const relativeTime = (value: string | null, now: number): string => {
+import { Temporal } from "temporal-polyfill-lite";
+
+import { instant } from "./instant.mts";
+
+/**
+ * 日付が変わっていれば日付の差を d で、同じ日なら経過時間を h・m で表す。
+ * 日付は timeZone（省略時は実行環境のタイムゾーン）で判定する。
+ */
+export const relativeTime = (
+  value: string | null,
+  now: Temporal.Instant,
+  timeZone: string = Temporal.Now.timeZoneId(),
+): string => {
   if (!value) {
     return "-";
   }
-  const elapsed = now - Date.parse(value);
-  if (!Number.isFinite(elapsed)) {
+  const time = instant(value);
+  if (!time) {
     return "?";
   }
-  const minutes = Math.floor(Math.abs(elapsed) / 60_000);
-  const sign = elapsed < 0 && minutes > 0 ? "-" : "";
-  if (minutes < 60) {
-    return sign + minutes + "m";
+  const days = time
+    .toZonedDateTimeISO(timeZone)
+    .toPlainDate()
+    .until(now.toZonedDateTimeISO(timeZone).toPlainDate()).days;
+  if (days !== 0) {
+    return days + "d";
   }
-  const hours = Math.floor(minutes / 60);
-  return hours < 24 ? sign + hours + "h" : sign + Math.floor(hours / 24) + "d";
+  const elapsed = time.until(now).total("minutes");
+  const minutes = Math.floor(Math.abs(elapsed));
+  const sign = elapsed < 0 && minutes > 0 ? "-" : "";
+  return minutes < 60 ? sign + minutes + "m" : sign + Math.floor(minutes / 60) + "h";
 };

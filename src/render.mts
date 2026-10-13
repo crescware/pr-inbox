@@ -1,3 +1,5 @@
+import { Temporal } from "temporal-polyfill-lite";
+
 import { cell } from "./cell.mts";
 import { clean } from "./clean.mts";
 import { facts } from "./facts.mts";
@@ -16,7 +18,8 @@ export const render = (
   author: string,
   target: Target,
   warnings: string[] = [],
-  now = Date.now(),
+  now: Temporal.Instant = Temporal.Now.instant(),
+  timeZone?: string,
 ): string => {
   const ordered = mergeOrder(all, author, target.trunk);
   const selectedAuthor = author.toLowerCase();
@@ -111,8 +114,8 @@ export const render = (
         indicator(f.conflict, 8, "red"),
         indicator(f.approved, 8),
         indicator(f.after === "不明" ? null : f.after === "あり", 5),
-        cell(relativeTime(f.commitAt, now), 6, "right"),
-        cell(relativeTime(f.commentAt, now), 7, "right"),
+        cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
+        cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
         cell(reviewers(f.reviewers), 0),
       ].join(" "),
     );
