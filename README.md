@@ -34,7 +34,7 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 `PRs` is a list in the same order as the tree.
 
-Only the PR numbers in the tree and the list get OSC 8 hyperlinks, so you can open PRs from supporting terminals. No link control sequences are added to piped output.
+PR numbers in the tree and list link to their PRs, and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
 
 | Column      | Description                                                                                                                                                                                                                    |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

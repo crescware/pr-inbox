@@ -333,3 +333,25 @@ test("先頭5文字が同じ Reviewer は対応表で全員を併記する", () 
   expect(output).toContain("revie, revie\n");
   expect(output).toContain("revie  reviewer-a, reviewer-b\n");
 });
+test("端末では一覧と対応表のReviewer名をGitHubアカウントへのリンクにする", () => {
+  const script = fileURLToPath(new URL("./render.mts", import.meta.url));
+  const p = pr();
+  p.reviewRequests = [{ login: "alpha-reviewer" }, { login: "bravo-reviewer" }];
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `process.stdout.isTTY = true;
+process.stdout.write((await import(${JSON.stringify(script)})).render(${JSON.stringify([p])}, "author", ${JSON.stringify(target)}));`,
+    ],
+    { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } },
+  );
+  expect(result.status).toBe(0);
+  const link = (login: string, label: string) =>
+    "\u001B]8;;https://github.com/" + login + "\u001B\\" + label + "\u001B]8;;\u001B\\";
+  expect(result.stdout.split(link("alpha-reviewer", "alpha"))).toHaveLength(3);
+  expect(result.stdout.split(link("bravo-reviewer", "bravo"))).toHaveLength(3);
+  expect(result.stdout).toContain(link("alpha-reviewer", "alpha-reviewer"));
+  expect(result.stdout).toContain(link("bravo-reviewer", "bravo-reviewer"));
+});
