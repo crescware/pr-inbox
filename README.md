@@ -69,7 +69,7 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` runs format checking (`pnpm format:check`), lint (`pnpm lint`), type checking (`pnpm typecheck`), and tests (`pnpm test`). Format the code with `pnpm format`. Lint treats warnings as failures.
+`pnpm check` runs format checking (`pnpm format:check`), lint (`pnpm lint`), type checking (`pnpm typecheck`), and tests (`pnpm test`). Format the code with `pnpm format`. Lint treats warnings as failures. `Date` is forbidden by lint; use `Temporal` from `temporal-polyfill-lite` instead.
 
 `pnpm build` outputs JavaScript to `dist/`. When publishing to npm, `prepublishOnly` runs `pnpm check` and `prepack` runs the build automatically, and only `dist/` is published.
 

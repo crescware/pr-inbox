@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "no-restricted-globals": [
+      "error",
+      { "name": "Date", "message": "Use Temporal instead of Date." }
+    ]
+  }
+}

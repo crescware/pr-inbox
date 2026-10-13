@@ -69,7 +69,7 @@ pnpm check
 pnpm build
 ```
 
-`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。
+`pnpm check` は、整形のずれの検出（`pnpm format:check`）・lint（`pnpm lint`）・型チェック（`pnpm typecheck`）・テスト（`pnpm test`）をまとめて実行する。整形は `pnpm format` で行う。lint は警告も失敗として扱う。`Date` は lint で禁止しているので、代わりに `temporal-polyfill-lite` の `Temporal` を使う。
 
 `pnpm build` は `dist/` に JavaScript を出力する。npm への公開時は `prepublishOnly` で `pnpm check` を、`prepack` でビルドを自動的に実行し、`dist/` だけを公開する。
 
