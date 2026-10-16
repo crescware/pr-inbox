@@ -21,6 +21,9 @@ export type Detail = {
   mergeable: "MERGEABLE" | "CONFLICTING" | "UNKNOWN";
   baseRefName: string;
   headRefName: string;
+  headCommit: {
+    nodes: { commit: { statusCheckRollup: { state: string } | null } }[];
+  };
   reviews: Connection<Review>;
   reviewThreads: Connection<{ comments: Connection<Comment> }>;
   comments: Connection<Comment>;
@@ -42,6 +45,7 @@ export type PR = {
   detail?: Detail;
 };
 export type Facts = {
+  checks: "success" | "failure" | "pending" | "none" | "unknown";
   approved: boolean | null;
   conflict: boolean | null;
   approval: string;

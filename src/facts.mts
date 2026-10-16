@@ -11,11 +11,32 @@ const human = (actor: Actor, author: string): actor is NonNullable<Actor> => {
   );
 };
 
+const checkStatus = (detail: PR["detail"]): Facts["checks"] => {
+  const rollup = detail?.headCommit?.nodes[0]?.commit.statusCheckRollup;
+  if (rollup === null) {
+    return "none";
+  }
+  switch (rollup?.state) {
+    case "SUCCESS":
+      return "success";
+    case "FAILURE":
+    case "ERROR":
+      return "failure";
+    case "PENDING":
+    case "EXPECTED":
+      return "pending";
+    default:
+      return "unknown";
+  }
+};
+
 export const facts = (pr: PR): Facts => {
   const requested = pr.reviewRequests.map((r) => r.login || r.slug || r.name || "?");
   const detail = pr.detail;
+  const checks = checkStatus(detail);
   if (!detail) {
     return {
+      checks,
       approved: null,
       conflict: null,
       approval: "不明",
@@ -78,6 +99,7 @@ export const facts = (pr: PR): Facts => {
           ? "不明"
           : "なし";
   return {
+    checks,
     approved,
     conflict: detail.mergeable === "UNKNOWN" ? null : detail.mergeable === "CONFLICTING",
     approval: approved === null ? "不明" : changes ? "変更要求" : approved ? "あり" : "なし",
