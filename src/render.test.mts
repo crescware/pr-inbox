@@ -19,17 +19,34 @@ test("main 宛と Approved を別々のチェックで表示する", () => {
   expect(rows[1]?.match(/✓/g)).toHaveLength(1);
   expect(output).not.toContain("main宛・Approved:");
 });
-test("指定した作者をヘッダーに表示し、他の作者の親 PR は明示する", () => {
-  const parent = pr(2, "main", "parent");
+test("他の作者の親 PR だけ番号に印を付け、タイトルと作者名を混ぜない", () => {
+  const ancestor = pr(5, "main", "ancestor");
+  ancestor.author.login = "another-author";
+  const parent = pr(2, "ancestor", "parent");
+  parent.author.login = "other-author";
   const child = pr(1, "parent", "child");
   child.author.login = "contributor";
   const root = pr(3, "main", "root");
   root.author.login = "contributor";
   parent.detail.reviews.nodes = [review("APPROVED")];
   root.detail.reviews.nodes = [review("APPROVED")];
-  const output = render([child, parent, root, pr(4)], "Contributor", target);
+  const output = render([child, parent, ancestor, root, pr(4)], "Contributor", target);
   expect(output.split("\n")[0]).toBe("org/repo / Contributor");
-  expect(output.match(/\[parent\]/g)).toHaveLength(2);
+  const [tree, list] = output.split("\nPRs\n");
+  expect(tree).toContain("└─ #5* テスト");
+  expect(tree).toContain("   └─ #2* テスト");
+  expect(tree).toContain("      └─ #1 テスト");
+  const rows = list?.split("\n").filter((line) => /^#\d+\*?\s/.test(line));
+  expect(rows?.find((line) => line.startsWith("#5*"))).toMatch(/^#5\*\s+テスト/);
+  expect(rows?.find((line) => line.startsWith("#2*"))).toMatch(/^#2\*\s+テスト/);
+  for (const number of [1, 3]) {
+    expect(rows?.find((line) => line.startsWith("#" + number + " "))).toMatch(/^#\d+\s+テスト/);
+  }
+  expect(output.match(/#\d+\*/g)).toHaveLength(4);
+  expect(output.match(/\* PR by another author/g)).toHaveLength(1);
+  expect(output).not.toContain("[parent");
+  expect(output).not.toContain("other-author");
+  expect(output).not.toContain("another-author");
   expect(output).not.toContain("#4");
 });
 test("分岐と階層をツリー表示し、一覧も同じ順序で件名を全文表示する", () => {
@@ -63,6 +80,7 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   expect(list).toContain(other.title);
   expect(output).not.toContain("…");
   expect(output).not.toContain("宛先");
+  expect(output).not.toContain("* PR by another author");
   expect(
     list
       ?.split("\n")
@@ -149,6 +167,7 @@ test("追加行数と削除行数をそれぞれ右詰めする", () => {
 });
 test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", () => {
   const checked = pr(1);
+  checked.author.login = "other-author";
   checked.title = "Checked";
   checked.detail.reviews.nodes = [review("APPROVED", "指摘")];
   const unchecked = pr(2, "feature", "child");
@@ -159,7 +178,9 @@ test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", 
     detail: undefined,
   };
   const output = render([checked, unchecked, unknown], "author", target);
-  const [header = "", ...rows] = output.split("\n").filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
+  const [header = "", ...rows] = output
+    .split("\n")
+    .filter((line) => /^(?:PR\s|#\d+\*?\s)/.test(line));
   const columns = ["main", "Conflict", "Approved", "Fixed"].map(
     (label) => header.indexOf(label) + label.length - 1,
   );
@@ -178,7 +199,7 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   reviewed.detail.reviews.nodes = [review("COMMENTED")];
   const unknown: PR = { ...pr(4), title: "不明のタイトル", detail: undefined };
   const output = render([child, parent, reviewed, unknown], "author", target);
-  expect(output).toContain("[parent] 親のタイトル");
+  expect(output).toContain("#1* 親のタイトル");
   expect(output).not.toContain("Not requested");
   expect(output).toContain("reviewer");
   expect(output).not.toContain("Reviewed");
@@ -198,6 +219,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
   const missing = pr(3);
   missing.detail.commits.nodes = [];
   const approved = pr(4, "main", "approved");
+  approved.author.login = "other-author";
   approved.detail.reviews.nodes = [review("APPROVED")];
   const child = pr(5, "approved", "child");
   child.detail.reviews.nodes = [review("APPROVED")];
@@ -207,6 +229,14 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
   const calculating = pr(7, "main", "calculating");
   calculating.detail.reviews.nodes = [review("APPROVED")];
   calculating.detail.mergeable = "UNKNOWN";
+  const otherDraft = pr(8, "main", "other-draft");
+  otherDraft.author.login = "other-author";
+  otherDraft.isDraft = true;
+  otherDraft.detail.reviews.nodes = [review("APPROVED")];
+  const draftChild = pr(9, "other-draft", "draft-child");
+  const ownApproved = pr(10, "main", "own-approved");
+  ownApproved.author.login = "Author";
+  ownApproved.detail.reviews.nodes = [review("APPROVED")];
   const prs: PR[] = [
     draft,
     { ...pr(2), detail: undefined },
@@ -215,6 +245,9 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
     child,
     conflicting,
     calculating,
+    otherDraft,
+    draftChild,
+    ownApproved,
   ];
   const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
   const plain = render(prs, "author", target, [], now, "UTC");
@@ -282,10 +315,33 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       expect(row).toContain("\u001B[2m-\u001B[22m");
       const highlighted = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#4 "));
+        .find((line) => stripVTControlCharacters(line).startsWith("#10 "));
       expect(highlighted?.split("\u001B[92m")).toHaveLength(3);
       expect(highlighted).toContain("\u001B[92mテスト");
-      for (const number of [1, 2, 3, 5, 6, 7]) {
+      const otherReadyRow = result.stdout
+        .split("\n")
+        .find((line) => stripVTControlCharacters(line).startsWith("#4*"));
+      const otherDraftRow = result.stdout
+        .split("\n")
+        .find((line) => stripVTControlCharacters(line).startsWith("#8*"));
+      for (const otherRow of [otherReadyRow, otherDraftRow]) {
+        expect(otherRow).toBeDefined();
+        expect(otherRow).not.toContain("\u001B[92m");
+        expect(otherRow).toContain("\u001B[32m*\u001B[39m");
+      }
+      expect(otherReadyRow).not.toContain("\u001B[2mテスト");
+      expect(otherDraftRow).toContain("\u001B[2mテスト");
+      const otherReadyTree = result.stdout
+        .split("\n")
+        .find((line) => stripVTControlCharacters(line).includes("─ #4* "));
+      const otherDraftTree = result.stdout
+        .split("\n")
+        .find((line) => stripVTControlCharacters(line).includes("─ #8* "));
+      expect(otherReadyTree).toContain("\u001B[32m*\u001B[39m テスト");
+      expect(otherReadyTree).not.toContain("\u001B[92m");
+      expect(otherDraftTree).toContain("\u001B[32m*\u001B[39m \u001B[2mテスト\u001B[22m");
+      expect(result.stdout).toContain("\u001B[32m*\u001B[39m PR by another author");
+      for (const number of [1, 2, 3, 5, 6, 7, 9]) {
         const normal = result.stdout
           .split("\n")
           .find((line) => stripVTControlCharacters(line).startsWith("#" + number + " "));
