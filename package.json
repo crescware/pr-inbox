@@ -1,6 +1,6 @@
 {
   "name": "pr-inbox",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "指定ユーザーの Open PR を、stack ツリーと同じ順序のレビュー状況一覧でターミナルに表示する",
   "license": "MIT",
   "repository": {
