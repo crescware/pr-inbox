@@ -30,9 +30,9 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 ## Output
 
-`Stack` shows the parent-child relationships between PRs. It includes parent PRs by other authors, marked with `[parent]`. Titles are never truncated.
+`Stack` shows the parent-child relationships between PRs. It also includes parent PRs by other authors. Titles are displayed in full, without added labels.
 
-`PRs` is a list in the same order as the tree.
+`PRs` is a list in the same order as the tree. In both views, PRs by authors other than the selected user have `*` immediately after the PR number, such as `#12*`. When such PRs are present, a legend explains the marker above the tree. Usernames are compared case-insensitively. The marker uses the same green as added lines in supporting terminals and remains visible when colors are disabled or output is piped.
 
 PR numbers in the tree and list link to their PRs, and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
 
@@ -53,7 +53,7 @@ When names are abbreviated, `Reviewers` below the list shows a table mapping eac
 
 Values in the base branch, `Conflict`, `Approved`, and `Fixed` columns are right-aligned: `✓` if applicable, `-` if not, and `?` if unknown. If GitHub is still computing whether a PR has conflicts, it re-queries up to 3 times at 2-second intervals, and `Conflict` shows `?` if the result is still unavailable. `Fixed` is `-` for PRs without comments. `Fixed` only compares timestamps; it does not judge the content of review comments or whether threads are resolved.
 
-In supporting terminals, headings are bold, titles in the tree are dim, and the header row of the list is dim and bold. PRs that target the base branch, are approved, and are confirmed to have no conflicts have their number and title shown in bright green in the list. `✓` is green (red for `Conflict`), `-` is dim, and `?` is yellow. No ANSI colors are added to piped output. Colors can also be disabled with `NO_COLOR=1`.
+In supporting terminals, headings are bold, titles in the tree are dim except for Ready PRs by other authors, and the header row of the list is dim and bold. Only PRs by the selected user that target the base branch, are approved, and are confirmed to have no conflicts have their number and non-draft title shown in bright green in the list. In both views, titles of PRs by other authors are dim for Drafts and use the normal terminal color for Ready PRs, even when approved and conflict-free. `✓` is green (red for `Conflict`), `-` is dim, and `?` is yellow. No ANSI colors are added to piped output. Colors can also be disabled with `NO_COLOR=1`.
 
 Comments cover review bodies, thread replies, and general comments, excluding those by the author and bots. Commits exclude merge commits (commits with two or more parents) and are compared by commit date.
 
