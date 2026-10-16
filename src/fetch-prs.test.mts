@@ -63,6 +63,19 @@ test("指定した作者の PR と、その親の PR だけ詳細を取得する
   fetchPRs(target, "author");
   expect(progress()).toContain("Fetching details: #1, #3");
 });
+test("最新コミットの check runs と commit statuses をまとめて取得する", () => {
+  const p = pr();
+  p.detail.headCommit = {
+    nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }],
+  };
+  respond([p]);
+  const result = fetchPRs(target, "author");
+  const query = vi.mocked(gh).mock.calls[1]?.[0].find((arg) => arg.startsWith("query="));
+  expect(query).toContain("headCommit:commits(last:1){nodes{commit{statusCheckRollup{state}}}}");
+  expect(result.prs[0]?.detail).toMatchObject({
+    headCommit: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
+  });
+});
 test("リポジトリ名はクエリに埋め込まず GraphQL の変数で渡す", () => {
   respond([pr()]);
   fetchPRs({ repo: "other/repo", trunk: "main" }, "author");

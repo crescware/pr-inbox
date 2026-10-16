@@ -36,6 +36,7 @@ export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings:
           p.number +
           ") {" +
           "state baseRefName headRefName mergeable " +
+          "headCommit:commits(last:1){nodes{commit{statusCheckRollup{state}}}} " +
           "reviews(last:100){pageInfo{hasPreviousPage} nodes{author{login __typename}state submittedAt body}} " +
           "reviewThreads(first:100){pageInfo{hasNextPage} nodes{comments(last:50){pageInfo{hasPreviousPage} nodes{author{login __typename}createdAt state pullRequestReview{submittedAt}}}}} " +
           "comments(last:100){pageInfo{hasPreviousPage}nodes{author{login __typename}createdAt}} " +

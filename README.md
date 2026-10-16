@@ -2,7 +2,7 @@
 
 English | [日本語](./README.ja.md)
 
-Shows a given user's open PRs in the terminal as a stack tree, followed by a review status list in the same order. It never writes to GitHub.
+Shows a given user's open PRs in the terminal as a stack tree, followed by a check and review status list in the same order. It never writes to GitHub.
 
 ## Requirements
 
@@ -38,6 +38,7 @@ PR numbers and titles in the tree and list link to their PRs, and reviewer names
 
 | Column      | Description                                                                                                                                                                                                                    |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| (no header) | Status checks for the latest commit, including GitHub Actions and external services: green `✓` for success, red `✗` for failure or error, `?` for pending or unknown, and blank if there are no checks                         |
 | PR          | PR number                                                                                                                                                                                                                      |
 | Title       | PR title; dimmed for draft PRs                                                                                                                                                                                                 |
 | Diff        | Added and deleted lines (`+123 -456`); additions are green and deletions are red in supporting terminals                                                                                                                       |

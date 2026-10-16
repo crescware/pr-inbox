@@ -12,13 +12,50 @@ const withoutColors = (output: string): string =>
   // eslint-disable-next-line no-control-regex -- Remove SGR colors while retaining OSC 8 links.
   output.replaceAll(/\u001B\[[\d;]*m/g, "");
 
+test("見出しなしのチェック結果・PR・Title の順で、成功・失敗・待機・なし・不明を表示する", () => {
+  const prs: PR[] = ["SUCCESS", "FAILURE", "PENDING", null].map((state, index) => {
+    const p = pr(index + 1);
+    p.title = "Example";
+    p.detail.headCommit = {
+      nodes: [{ commit: { statusCheckRollup: state === null ? null : { state } } }],
+    };
+    return p;
+  });
+  prs.push({ ...pr(5), title: "Unknown", detail: undefined });
+  const output = withStdoutTTY(false, () => render(prs, "author", target));
+  const list = output.split("\nPRs\n")[1]?.trimEnd().split("\n").slice(1) ?? [];
+  expect(list[0]).toMatch(/^  PR\s+Title\s+Diff\s+main\s+Conflict/);
+  expect(list.slice(1).map((line) => line.slice(0, 4))).toEqual([
+    "✓ #1",
+    "✗ #2",
+    "? #3",
+    "  #4",
+    "? #5",
+  ]);
+  expect(list[0]?.indexOf("PR")).toBe(2);
+  expect(list[0]?.indexOf("Title")).toBe(list[1]?.indexOf("Example"));
+  expect(output).not.toContain("Checks");
+  expect(output).toContain("├─ #1 Example");
+  expect(output).not.toContain("├─ ✓");
+
+  const terminal = inTerminal(
+    new URL("./render.mts", import.meta.url),
+    `m.render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)})`,
+  );
+  expect(terminal).toContain("\u001B[32m✓\u001B[39m ");
+  expect(terminal).toContain("\u001B[31m✗\u001B[39m ");
+  expect(terminal).toContain("\u001B[33m?\u001B[39m ");
+  expect(terminal).toContain("\n  \u001B]8;;https://github.com/org/repo/pull/4");
+  expect(stripVTControlCharacters(terminal)).toBe(output);
+});
+
 test("main 宛と Approved を別々のチェックで表示する", () => {
   const root = pr(1);
   const child = pr(2, "feature", "child");
   root.detail.reviews.nodes = [review("APPROVED")];
   child.detail.reviews.nodes = [review("APPROVED")];
   const output = render([child, root], "author", target);
-  const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
+  const rows = output.split("\n").filter((line) => /^[✓✗? ] #\d+\s/.test(line));
   expect(rows[0]?.match(/✓/g)).toHaveLength(2);
   expect(rows[1]?.match(/✓/g)).toHaveLength(1);
   expect(output).not.toContain("main宛・Approved:");
@@ -40,11 +77,13 @@ test("他の作者の親 PR だけ番号に印を付け、タイトルと作者�
   expect(tree).toContain("└─ #5* テスト");
   expect(tree).toContain("   └─ #2* テスト");
   expect(tree).toContain("      └─ #1 テスト");
-  const rows = list?.split("\n").filter((line) => /^#\d+\*?\s/.test(line));
-  expect(rows?.find((line) => line.startsWith("#5*"))).toMatch(/^#5\*\s+テスト/);
-  expect(rows?.find((line) => line.startsWith("#2*"))).toMatch(/^#2\*\s+テスト/);
+  const rows = list?.split("\n").filter((line) => /^[✓✗? ] #\d+\*?\s/.test(line));
+  expect(rows?.find((line) => line.slice(2).startsWith("#5*"))).toMatch(/^[✓✗? ] #5\*\s+テスト/);
+  expect(rows?.find((line) => line.slice(2).startsWith("#2*"))).toMatch(/^[✓✗? ] #2\*\s+テスト/);
   for (const number of [1, 3]) {
-    expect(rows?.find((line) => line.startsWith("#" + number + " "))).toMatch(/^#\d+\s+テスト/);
+    expect(rows?.find((line) => line.slice(2).startsWith("#" + number + " "))).toMatch(
+      /^[✓✗? ] #\d+\s+テスト/,
+    );
   }
   expect(output.match(/#\d+\*/g)).toHaveLength(4);
   expect(output.match(/\* PR by another author/g)).toHaveLength(1);
@@ -88,7 +127,7 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   expect(
     list
       ?.split("\n")
-      .filter((line) => /^#\d+\s/.test(line))
+      .filter((line) => /^[✓✗? ] #\d+\s/.test(line))
       .map((line) => line.match(/#\d+/)?.[0]),
   ).toEqual(["#4", "#3", "#6", "#5", "#51"]);
 });
@@ -112,7 +151,7 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
     Temporal.Instant.from("2026-10-09T12:00:00Z"),
     "UTC",
   );
-  const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
+  const rows = output.split("\n").filter((line) => /^[✓✗? ] #\d+\s/.test(line));
   expect(output).toMatch(
     /PR\s+Title\s+Diff\s+main\s+Conflict\s+Approved\s+Fixed\s+Commit\s+Comment\s+Reviewer/,
   );
@@ -127,7 +166,7 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
   expect(rows[2]?.match(/✓/g)).toHaveLength(1);
   expect(rows[1]).not.toMatch(/あり|なし/);
   expect(rows[2]).not.toMatch(/あり|なし/);
-  expect(rows[3]?.match(/\?/g)).toHaveLength(3);
+  expect(rows[3]?.slice(2).match(/\?/g)).toHaveLength(3);
   expect(rows[1]).toMatch(/-\s+-\s+2h\s+1h/);
   expect(rows[2]).toMatch(/-\s+-\s+2h\s+-/);
 });
@@ -150,7 +189,7 @@ test("時間の列を桁数に関係なく右詰めする", () => {
   );
   const [header = "", row1 = "", row2 = ""] = output
     .split("\n")
-    .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
+    .filter((line) => /^(?:  PR\s|[✓✗? ] #\d+\s)/.test(line));
   expect(row1.indexOf("10d") + 3).toBe(header.indexOf("Comment") + 7);
   expect(row2.indexOf("9m") + 2).toBe(header.indexOf("Comment") + 7);
   expect(row1.indexOf("10h") + 3).toBe(header.indexOf("Commit") + 6);
@@ -165,7 +204,7 @@ test("追加行数と削除行数をそれぞれ右詰めする", () => {
   small.deletions = 2;
   const rows = render([large, small], "author", target)
     .split("\n")
-    .filter((line) => /^#\d+\s/.test(line));
+    .filter((line) => /^[✓✗? ] #\d+\s/.test(line));
   expect(rows[0]).toContain("+2014 -3205");
   expect(rows[1]).toContain("  +65    -2");
 });
@@ -184,7 +223,7 @@ test("main・Conflict・Approved・Fixed の値を各列の右端に揃える", 
   const output = render([checked, unchecked, unknown], "author", target);
   const [header = "", ...rows] = output
     .split("\n")
-    .filter((line) => /^(?:PR\s|#\d+\*?\s)/.test(line));
+    .filter((line) => /^(?:  PR\s|[✓✗? ] #\d+\*?\s)/.test(line));
   const columns = ["main", "Conflict", "Approved", "Fixed"].map(
     (label) => header.indexOf(label) + label.length - 1,
   );
@@ -213,7 +252,7 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
     output,
   );
   expect(withoutTitles).not.toMatch(/[^\u0020-\u007E\n✓├─└│]/u);
-  expect(output.trimEnd().split("\n").at(-1)).toMatch(/^#4\s/);
+  expect(output.trimEnd().split("\n").at(-1)).toMatch(/^\? #4\s/);
   expect(render([], "author", target, ["Fetch failed"])).toMatch(/\nWarning: Fetch failed$/);
 });
 test.each([
@@ -257,7 +296,7 @@ test.each([
     );
     const lines = output.split("\n");
     const treeLine = lines.find((line) => stripVTControlCharacters(line).includes("─ #1"));
-    const listLine = lines.find((line) => stripVTControlCharacters(line).startsWith("#1"));
+    const listLine = lines.find((line) => stripVTControlCharacters(line).slice(2).startsWith("#1"));
     expect(treeLine).toContain("\u001B[2mParent title\u001B[22m");
     expect(treeLine).not.toContain("\u001B[92m");
     expect(listLine).toContain(listTitle);
@@ -390,33 +429,33 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       expect(result.stdout).toContain("\u001B[33m");
       expect(result.stdout).toContain("\u001B[1mStack\u001B[22m\n\nmain\n");
       expect(result.stdout).toContain("\u001B[1mPRs\u001B[22m");
-      expect(result.stdout).toContain("\u001B[1m\u001B[2mPR ");
+      expect(result.stdout).toContain("\u001B[1m\u001B[2m  PR ");
       expect(result.stdout).toContain(
         "\u001B]8;;https://github.com/org/repo/pull/1\u001B\\\u001B[2mテスト\u001B[22m\u001B]8;;\u001B\\",
       );
       const firstRow = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#1 "));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#1 "));
       expect(firstRow).toContain("テスト");
       expect(firstRow).toContain("\u001B[2mテスト");
       expect(firstRow).toContain("\u001B[32m+123\u001B[39m \u001B[31m-456\u001B[39m");
       const row = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#3 "));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#3 "));
       expect(row).toContain("\u001B[2m      -\u001B[22m");
       expect(row).toContain("\u001B[2m     -\u001B[22m");
       expect(row).toContain("\u001B[2m-\u001B[22m");
       const highlighted = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#10 "));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#10 "));
       expect(highlighted?.split("\u001B[92m")).toHaveLength(3);
       expect(highlighted).toContain("\u001B[92mテスト");
       const otherReadyRow = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#4*"));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#4*"));
       const otherDraftRow = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#8*"));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#8*"));
       for (const otherRow of [otherReadyRow, otherDraftRow]) {
         expect(otherRow).toBeDefined();
         expect(otherRow).not.toContain("\u001B[92m");
@@ -439,15 +478,17 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       );
       expect(result.stdout).toContain("\u001B[32m*\u001B[39m PR by another author");
       for (const number of [1, 2, 3, 5, 6, 7, 9]) {
-        const normal = result.stdout
-          .split("\n")
-          .find((line) => stripVTControlCharacters(line).startsWith("#" + number + " "));
+        const normal = result.stdout.split("\n").find((line) =>
+          stripVTControlCharacters(line)
+            .slice(2)
+            .startsWith("#" + number + " "),
+        );
         expect(normal).toBeDefined();
         expect(normal).not.toContain("\u001B[92m");
       }
       const conflictRow = result.stdout
         .split("\n")
-        .find((line) => stripVTControlCharacters(line).startsWith("#6 "));
+        .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#6 "));
       expect(conflictRow).toContain("\u001B[31m       ✓\u001B[39m");
       expect(conflictRow?.split("\u001B[31m")).toHaveLength(3);
     }
@@ -462,7 +503,7 @@ test("宛先ブランチの列はブランチ名を見出しにし、値を見�
   });
   const [header = "", row = ""] = output
     .split("\n")
-    .filter((line) => /^(?:PR\s|#\d+\s)/.test(line));
+    .filter((line) => /^(?:  PR\s|[✓✗? ] #\d+\s)/.test(line));
   expect(header).toMatch(/Title\s+Diff\s+production\s+Conflict/);
   expect(row[header.indexOf("production") + "production".length - 1]).toBe("✓");
 });
@@ -474,14 +515,14 @@ test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下
   const repeated = pr(3);
   repeated.reviewRequests = [{ login: "alpha-reviewer" }, { login: "delta-reviewer" }];
   const output = render([multiple, single, repeated], "author", target);
-  const rows = output.split("\n").filter((line) => /^#\d+\s/.test(line));
+  const rows = output.split("\n").filter((line) => /^[✓✗? ] #\d+\s/.test(line));
   expect(rows[0]).toMatch(/alpha, bravo$/);
   expect(rows[1]).toMatch(/single-reviewer$/);
   expect(rows[2]).toMatch(/alpha, delta$/);
   expect(output.split("\nReviewers\n\n")[1]).toBe(
     ["alpha  alpha-reviewer", "bravo  bravo-reviewer", "delta  delta-reviewer", ""].join("\n"),
   );
-  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("#3 "));
+  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("  #3 "));
 });
 test("1人だけの場合と5文字以下の名前だけの場合は対応表を出さない", () => {
   const single = pr(1);

@@ -24,6 +24,7 @@ export const pr = (number = 1, base = "main", branch = "feature"): PR & { detail
     mergeable: "MERGEABLE",
     baseRefName: base,
     headRefName: branch,
+    headCommit: { nodes: [{ commit: { statusCheckRollup: null } }] },
     reviews: empty(),
     reviewThreads: empty(),
     comments: empty(),

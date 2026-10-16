@@ -3,6 +3,39 @@ import { expect, test } from "vitest";
 import { facts } from "./facts.mts";
 import { empty, pr, review } from "./fixtures.mts";
 
+test.each([
+  ["SUCCESS", "success"],
+  ["FAILURE", "failure"],
+  ["ERROR", "failure"],
+  ["PENDING", "pending"],
+  ["EXPECTED", "pending"],
+  ["UNRECOGNIZED", "unknown"],
+])("最新コミットのチェック集計 %s を %s と判定する", (state, expected) => {
+  const p = pr();
+  p.detail.headCommit = { nodes: [{ commit: { statusCheckRollup: { state } } }] };
+  expect(facts(p).checks).toBe(expected);
+});
+test("チェックなしと取得不明を区別する", () => {
+  const p = pr();
+  p.detail.headCommit = { nodes: [{ commit: { statusCheckRollup: null } }] };
+  expect(facts(p).checks).toBe("none");
+  p.detail.headCommit = { nodes: [] };
+  expect(facts(p).checks).toBe("unknown");
+  expect(facts({ ...p, detail: undefined }).checks).toBe("unknown");
+});
+test("チェックはコミット日時やマージコミットの除外に影響されない", () => {
+  const p = pr();
+  p.detail.commits = empty([
+    { commit: { committedDate: "2026-10-09T12:00:00Z", parents: { totalCount: 1 } } },
+    { commit: { committedDate: "2026-10-09T08:00:00Z", parents: { totalCount: 2 } } },
+  ]);
+  p.detail.headCommit = {
+    nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }],
+  };
+  expect(facts(p).checks).toBe("failure");
+  expect(facts(p).commitAt).toBe("2026-10-09T12:00:00Z");
+});
+
 test("Bot と PR 作者の Approve は集計しない", () => {
   const p = pr();
   p.detail.reviews.nodes = [

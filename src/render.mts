@@ -84,6 +84,7 @@ export const render = (
     styled(
       ["bold", "dim"],
       [
+        cell("", 1),
         cell("PR", numberWidth),
         cell("Title", titleWidth),
         cell("Diff", diffWidth),
@@ -117,6 +118,7 @@ export const render = (
   };
   displayOrder.forEach((pr) => {
     const f = facts(pr);
+    const checks = { success: "✓", failure: "✗", pending: "?", none: "", unknown: "?" }[f.checks];
     const title = clean(pr.title);
     const additions = "+" + pr.additions;
     const deletions = "-" + pr.deletions;
@@ -129,6 +131,7 @@ export const render = (
         : "none";
     lines.push(
       [
+        cell(checks, 1, "left", f.checks === "failure" ? "red" : undefined),
         displayNumber(pr, numberWidth, highlight),
         prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, cell(title, 0))) +
           cell("", titleWidth - width(title)),
