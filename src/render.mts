@@ -7,6 +7,7 @@ import { githubAccount } from "./github-account.mts";
 import { indicator } from "./indicator.mts";
 import { mergeOrder } from "./merge-order.mts";
 import { parentOf } from "./parent-of.mts";
+import { prLink } from "./pr-link.mts";
 import { prNumber } from "./pr-number.mts";
 import { relativeTime } from "./relative-time.mts";
 import { reviewerNames } from "./reviewer-names.mts";
@@ -54,7 +55,11 @@ export const render = (
     siblings.forEach((pr, index) => {
       const last = index === siblings.length - 1;
       lines.push(
-        prefix + (last ? "└─ " : "├─ ") + displayNumber(pr) + " " + styled("dim", clean(pr.title)),
+        prefix +
+          (last ? "└─ " : "├─ ") +
+          displayNumber(pr) +
+          " " +
+          prLink(target.repo, pr.number, styled("dim", clean(pr.title))),
       );
       displayOrder.push(pr);
       draw(children.get(pr.number) ?? [], prefix + (last ? "   " : "│  "));
@@ -112,6 +117,7 @@ export const render = (
   };
   displayOrder.forEach((pr) => {
     const f = facts(pr);
+    const title = clean(pr.title);
     const additions = "+" + pr.additions;
     const deletions = "-" + pr.deletions;
     const highlight =
@@ -124,7 +130,8 @@ export const render = (
     lines.push(
       [
         displayNumber(pr, numberWidth, highlight),
-        styled(pr.isDraft ? "dim" : highlight, cell(pr.title, titleWidth)),
+        prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, cell(title, 0))) +
+          cell("", titleWidth - width(title)),
         " ".repeat(additionsWidth - width(additions)) +
           styled("green", additions) +
           " " +

@@ -34,7 +34,7 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 `PRs` is a list in the same order as the tree. In both views, PRs by authors other than the selected user have `*` immediately after the PR number, such as `#12*`. When such PRs are present, a legend explains the marker above the tree. Usernames are compared case-insensitively. The marker uses the same green as added lines in supporting terminals and remains visible when colors are disabled or output is piped.
 
-PR numbers in the tree and list link to their PRs, and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
+PR numbers and titles in the tree and list link to their PRs, and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
 
 | Column      | Description                                                                                                                                                                                                                    |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
