@@ -4,7 +4,7 @@ import { stripVTControlCharacters } from "node:util";
 import { Temporal } from "temporal-polyfill-lite";
 import { expect, test } from "vitest";
 
-import { pr, review, target } from "./fixtures.mts";
+import { inTerminal, pr, review, target } from "./fixtures.mts";
 import { render } from "./render.mts";
 import type { PR } from "./types.mts";
 
@@ -212,6 +212,53 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   expect(output.trimEnd().split("\n").at(-1)).toMatch(/^#4\s/);
   expect(render([], "author", target, ["Fetch failed"])).toMatch(/\nWarning: Fetch failed$/);
 });
+test.each([
+  {
+    label: "指定した作者・Ready",
+    login: "Author",
+    isDraft: false,
+    listTitle: "\u001B[92mParent title\u001B[39m",
+  },
+  {
+    label: "指定した作者・Draft",
+    login: "Author",
+    isDraft: true,
+    listTitle: "\u001B[2mParent title\u001B[22m",
+  },
+  {
+    label: "他の作者・Ready",
+    login: "other-author",
+    isDraft: false,
+    listTitle: " Parent title ",
+  },
+  {
+    label: "他の作者・Draft",
+    login: "other-author",
+    isDraft: true,
+    listTitle: "\u001B[2mParent title\u001B[22m",
+  },
+])(
+  "スタックツリーのタイトルは作者・状態によらず薄色（$label）",
+  ({ login, isDraft, listTitle }) => {
+    const parent = pr(1, "main", "parent");
+    parent.title = "Parent title";
+    parent.author.login = login;
+    parent.isDraft = isDraft;
+    parent.detail.reviews.nodes = [review("APPROVED")];
+    const child = pr(2, "parent", "child");
+    child.title = "Child title";
+    const output = inTerminal(
+      new URL("./render.mts", import.meta.url),
+      `m.render(${JSON.stringify([parent, child])}, "author", ${JSON.stringify(target)})`,
+    );
+    const lines = output.split("\n");
+    const treeLine = lines.find((line) => stripVTControlCharacters(line).includes("─ #1"));
+    const listLine = lines.find((line) => stripVTControlCharacters(line).startsWith("#1"));
+    expect(treeLine).toContain("\u001B[2mParent title\u001B[22m");
+    expect(treeLine).not.toContain("\u001B[92m");
+    expect(listLine).toContain(listTitle);
+  },
+);
 test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR では色を付けない", () => {
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
   const draft = pr();
@@ -294,6 +341,14 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       }
     }
     if (colored) {
+      const treeLines = result.stdout
+        .split("\n")
+        .filter((line) => /[├└]─ #\d/.test(stripVTControlCharacters(line)));
+      expect(treeLines).toHaveLength(prs.length);
+      for (const treeLine of treeLines) {
+        expect(treeLine).toContain("\u001B[2mテスト\u001B[22m");
+        expect(treeLine).not.toContain("\u001B[92m");
+      }
       expect(result.stdout).toContain("\u001B[32m");
       expect(result.stdout).toContain("\u001B[2m");
       expect(result.stdout).toContain("\u001B[33m");
@@ -337,7 +392,7 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       const otherDraftTree = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).includes("─ #8* "));
-      expect(otherReadyTree).toContain("\u001B[32m*\u001B[39m テスト");
+      expect(otherReadyTree).toContain("\u001B[32m*\u001B[39m \u001B[2mテスト\u001B[22m");
       expect(otherReadyTree).not.toContain("\u001B[92m");
       expect(otherDraftTree).toContain("\u001B[32m*\u001B[39m \u001B[2mテスト\u001B[22m");
       expect(result.stdout).toContain("\u001B[32m*\u001B[39m PR by another author");

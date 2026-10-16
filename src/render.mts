@@ -54,11 +54,7 @@ export const render = (
     siblings.forEach((pr, index) => {
       const last = index === siblings.length - 1;
       lines.push(
-        prefix +
-          (last ? "└─ " : "├─ ") +
-          displayNumber(pr) +
-          " " +
-          styled(otherAuthor(pr) && !pr.isDraft ? "none" : "dim", clean(pr.title)),
+        prefix + (last ? "└─ " : "├─ ") + displayNumber(pr) + " " + styled("dim", clean(pr.title)),
       );
       displayOrder.push(pr);
       draw(children.get(pr.number) ?? [], prefix + (last ? "   " : "│  "));
