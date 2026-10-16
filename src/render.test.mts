@@ -4,9 +4,13 @@ import { stripVTControlCharacters } from "node:util";
 import { Temporal } from "temporal-polyfill-lite";
 import { expect, test } from "vitest";
 
-import { inTerminal, pr, review, target } from "./fixtures.mts";
+import { inTerminal, pr, review, target, withStdoutTTY } from "./fixtures.mts";
 import { render } from "./render.mts";
 import type { PR } from "./types.mts";
+
+const withoutColors = (output: string): string =>
+  // eslint-disable-next-line no-control-regex -- Remove SGR colors while retaining OSC 8 links.
+  output.replaceAll(/\u001B\[[\d;]*m/g, "");
 
 test("main 宛と Approved を別々のチェックで表示する", () => {
   const root = pr(1);
@@ -229,7 +233,7 @@ test.each([
     label: "他の作者・Ready",
     login: "other-author",
     isDraft: false,
-    listTitle: " Parent title ",
+    listTitle: "\u001B]8;;https://github.com/org/repo/pull/1\u001B\\Parent title\u001B]8;;\u001B\\",
   },
   {
     label: "他の作者・Draft",
@@ -259,6 +263,31 @@ test.each([
     expect(listLine).toContain(listTitle);
   },
 );
+test("ツリーと一覧の PR タイトルを番号と同じ PR へのリンクにし、空白で列を揃える", () => {
+  const parent = pr(21, "main", "parent");
+  parent.title = "  短い\n\t件名\u0007  ";
+  const child = pr(22, "parent", "child");
+  child.title = "省略しない長い日本語と English の件名".repeat(3);
+  const prs = [child, parent];
+  const destination = { ...target, repo: "example/project" };
+  const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+  const plain = withStdoutTTY(false, () => render(prs, "author", destination, [], now, "UTC"));
+  const output = withStdoutTTY(true, () => render(prs, "author", destination, [], now, "UTC"));
+  const [tree, list] = withoutColors(output).split("\nPRs\n");
+  for (const [number, title] of [
+    [21, "短い 件名"],
+    [22, child.title],
+  ] as const) {
+    const start = "\u001B]8;;https://github.com/example/project/pull/" + number + "\u001B\\";
+    const end = "\u001B]8;;\u001B\\";
+    for (const view of [tree, list]) {
+      expect(view?.split(start + "#" + number + end)).toHaveLength(2);
+      expect(view?.split(start + title + end)).toHaveLength(2);
+    }
+  }
+  expect(stripVTControlCharacters(output)).toBe(plain);
+  expect(plain).not.toContain("\u001B");
+});
 test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR では色を付けない", () => {
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
   const draft = pr();
@@ -338,6 +367,13 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
           p.number +
           "\u001B]8;;\u001B\\";
         expect(result.stdout.split(link)).toHaveLength(3);
+        const titleLink =
+          "\u001B]8;;https://github.com/org/repo/pull/" +
+          p.number +
+          "\u001B\\" +
+          p.title +
+          "\u001B]8;;\u001B\\";
+        expect(withoutColors(result.stdout).split(titleLink)).toHaveLength(3);
       }
     }
     if (colored) {
@@ -355,7 +391,9 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       expect(result.stdout).toContain("\u001B[1mStack\u001B[22m\n\nmain\n");
       expect(result.stdout).toContain("\u001B[1mPRs\u001B[22m");
       expect(result.stdout).toContain("\u001B[1m\u001B[2mPR ");
-      expect(result.stdout).toContain("\u001B]8;;\u001B\\ \u001B[2mテスト\u001B[22m");
+      expect(result.stdout).toContain(
+        "\u001B]8;;https://github.com/org/repo/pull/1\u001B\\\u001B[2mテスト\u001B[22m\u001B]8;;\u001B\\",
+      );
       const firstRow = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).startsWith("#1 "));
@@ -392,9 +430,13 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       const otherDraftTree = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).includes("─ #8* "));
-      expect(otherReadyTree).toContain("\u001B[32m*\u001B[39m \u001B[2mテスト\u001B[22m");
+      expect(otherReadyTree).toContain(
+        "\u001B[32m*\u001B[39m \u001B]8;;https://github.com/org/repo/pull/4\u001B\\\u001B[2mテスト\u001B[22m\u001B]8;;\u001B\\",
+      );
       expect(otherReadyTree).not.toContain("\u001B[92m");
-      expect(otherDraftTree).toContain("\u001B[32m*\u001B[39m \u001B[2mテスト\u001B[22m");
+      expect(otherDraftTree).toContain(
+        "\u001B[32m*\u001B[39m \u001B]8;;https://github.com/org/repo/pull/8\u001B\\\u001B[2mテスト\u001B[22m\u001B]8;;\u001B\\",
+      );
       expect(result.stdout).toContain("\u001B[32m*\u001B[39m PR by another author");
       for (const number of [1, 2, 3, 5, 6, 7, 9]) {
         const normal = result.stdout
