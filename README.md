@@ -30,6 +30,8 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 ## Output
 
+`Authored` shows PRs you've created, and `Reviewing` shows PRs you've been asked to review or have already reviewed. Each has its own tree and status table, so you can check your PRs and review work separately. PRs targeting branches such as `main` or `hotfix` appear alongside those targeting the default branch.
+
 `Stack` shows the parent-child relationships between PRs. It also includes parent PRs by other authors. Titles are displayed in full, without added labels.
 
 `PRs` is a list in the same order as the tree. In both views, PRs by authors other than the selected user have `*` immediately after the PR number, such as `#12*`. When such PRs are present, a legend explains the marker above the tree. Usernames are compared case-insensitively. The marker uses the same green as added lines in supporting terminals and remains visible when colors are disabled or output is piped.
@@ -50,7 +52,7 @@ PR numbers and titles in the tree and list link to their PRs, and reviewer names
 | Comment     | Time since the latest comment                                                                                                                                                                                                  |
 | Reviewer    | Requested reviewers and people who reviewed, deduplicated and sorted alphabetically. With multiple people, shows the first 5 characters of each name; with one person, the full name. Separated by `, `. `-` if there are none |
 
-When names are abbreviated, `Reviewers` below the list shows a table mapping each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
+When names are abbreviated, a single `Reviewers` table below both sections maps each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
 
 The selected user's name or abbreviation is highlighted in green in `Reviewer`, making their review assignments easy to spot.
 

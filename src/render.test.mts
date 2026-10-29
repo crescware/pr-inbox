@@ -12,6 +12,174 @@ const withoutColors = (output: string): string =>
   // eslint-disable-next-line no-control-regex -- Remove SGR colors while retaining OSC 8 links.
   output.replaceAll(/\u001B\[[\d;]*m/g, "");
 
+const section = (output: string, name: "Authored" | "Reviewing"): string =>
+  output.split("\n" + name + "\n")[1]?.split(/\n(?:Authored|Reviewing|Reviewers)\n/)[0] ?? "";
+const tablePRs = (output: string): string[] =>
+  output.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
+const treePRs = (output: string): string[] =>
+  output.split("\n").flatMap((line) => line.match(/[├└]─ (#\d+\*?) /)?.[1] ?? []);
+
+test("作成した PR とレビューする PR を別々のツリー・表で表示し、カラムを変えない", () => {
+  const ownParent = pr(4, "main", "own-parent");
+  ownParent.author.login = "Author";
+  const ownChild = pr(2, "own-parent", "own-child");
+  const reviewParent = pr(7, "main", "review-parent");
+  reviewParent.author.login = "contributor";
+  const requested = pr(3, "review-parent", "requested");
+  requested.author.login = "contributor";
+  requested.reviewRequests = [{ login: "AUTHOR" }];
+  const reviewed = {
+    ...pr(5, "main", "reviewed"),
+    author: { login: "contributor" },
+    reviewedBy: "Author",
+    detail: undefined,
+  };
+  const unrelated = pr(99, "main", "unrelated");
+  unrelated.author.login = "contributor";
+  const output = render(
+    [requested, ownChild, reviewed, reviewParent, ownParent, unrelated],
+    "author",
+    target,
+  );
+  const authored = section(output, "Authored");
+  const reviewing = section(output, "Reviewing");
+  expect(treePRs(authored)).toEqual(["#4", "#2"]);
+  expect(tablePRs(authored)).toEqual(["#4", "#2"]);
+  expect(treePRs(reviewing)).toEqual(["#5*", "#7*", "#3*"]);
+  expect(tablePRs(reviewing)).toEqual(["#5*", "#7*", "#3*"]);
+  expect(output.match(/\nStack\n/g)).toHaveLength(2);
+  expect(output.match(/\nPRs\n/g)).toHaveLength(2);
+  const columns = [
+    "PR",
+    "Title",
+    "Diff",
+    "main",
+    "Conflict",
+    "Approved",
+    "Fixed",
+    "Commit",
+    "Comment",
+    "Reviewer",
+  ];
+  for (const group of [authored, reviewing]) {
+    const header = group.split("\n").find((line) => /^  PR\s/.test(line));
+    expect(header?.trim().split(/\s+/)).toEqual(columns);
+  }
+  expect(output).not.toContain("#99");
+});
+test("両方の組に必要な親 PR はそれぞれのツリーと表に残し、無関係な子は加えない", () => {
+  const parent = pr(10, "main", "parent");
+  parent.author.login = "contributor";
+  parent.reviewRequests = [{ login: "author" }];
+  const own = pr(12, "parent", "own");
+  own.reviewRequests = [{ login: "author" }];
+  const requested = pr(14, "own", "requested");
+  requested.author.login = "contributor";
+  requested.reviewRequests = [{ login: "author" }];
+  const unrelated = pr(15, "own", "unrelated");
+  unrelated.author.login = "contributor";
+  const output = render([requested, own, unrelated, parent], "author", target);
+  const authored = section(output, "Authored");
+  const reviewing = section(output, "Reviewing");
+  expect(treePRs(authored)).toEqual(["#10*", "#12"]);
+  expect(tablePRs(authored)).toEqual(["#10*", "#12"]);
+  expect(treePRs(reviewing)).toEqual(["#10*", "#12", "#14*"]);
+  expect(tablePRs(reviewing)).toEqual(["#10*", "#12", "#14*"]);
+  expect(reviewing).toContain("└─ #10* テスト\n   └─ #12 テスト\n      └─ #14* テスト");
+  expect(output.match(/\* PR by another author/g)).toHaveLength(1);
+  expect(output).not.toContain("#15");
+});
+test("両方の表の略記を最後の一箇所にまとめ、同じ略記の別人もすべて載せる", () => {
+  const own = pr(1, "main", "own");
+  own.reviewRequests = [{ login: "review-alpha" }, { login: "helper-one" }];
+  const requested = pr(2, "main", "requested");
+  requested.author.login = "contributor";
+  requested.reviewRequests = [{ login: "author" }, { login: "review-beta" }];
+  const output = render([requested, own], "author", target, ["Example warning"]);
+  expect(tablePRs(section(output, "Authored"))).toEqual(["#1"]);
+  expect(tablePRs(section(output, "Reviewing"))).toEqual(["#2*"]);
+  expect(output.match(/\nReviewers\n/g)).toHaveLength(1);
+  expect(output.split("\nReviewers\n\n")[1]).toBe(
+    [
+      "autho  author",
+      "helpe  helper-one",
+      "revie  review-alpha, review-beta",
+      "",
+      "Warning: Example warning",
+    ].join("\n"),
+  );
+  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("  #2* "));
+  const terminal = inTerminal(
+    new URL("./render.mts", import.meta.url),
+    `m.render(${JSON.stringify([requested, own])}, "author", ${JSON.stringify(target)}, ["Example warning"])`,
+  );
+  expect(stripVTControlCharacters(terminal)).toBe(output);
+  expect(terminal).toContain(
+    "\u001B[32m\u001B]8;;https://github.com/author\u001B\\autho\u001B]8;;\u001B\\\u001B[39m",
+  );
+});
+test.each(["Authored", "Reviewing"] as const)(
+  "%s だけの場合は対象のない組の表を増やさない",
+  (name) => {
+    const p = pr();
+    if (name === "Reviewing") {
+      p.author.login = "contributor";
+      p.reviewRequests = [{ login: "author" }];
+    }
+    const output = render([p], "author", target);
+    expect(output).toContain("\n" + name + "\n");
+    expect(output).not.toContain("\n" + (name === "Authored" ? "Reviewing" : "Authored") + "\n");
+    expect(output.match(/\nStack\n/g)).toHaveLength(1);
+    expect(output.match(/\nPRs\n/g)).toHaveLength(1);
+    expect(output).not.toContain("No open PRs");
+  },
+);
+test("デフォルトが develop でも main・hotfix 宛の PR と stack を両方の組に表示する", () => {
+  const ownMain = pr(1, "main", "own-hotfix");
+  const reviewingMain = pr(2, "main", "review-hotfix");
+  reviewingMain.author.login = "contributor";
+  reviewingMain.reviewRequests = [{ login: "author" }];
+  const ownDefault = pr(3, "develop", "own-default");
+  const reviewingDefault = pr(4, "develop", "review-default");
+  reviewingDefault.author.login = "contributor";
+  reviewingDefault.reviewedBy = "author";
+  const ownChild = pr(5, "own-hotfix", "own-child");
+  const reviewingChild = pr(6, "review-hotfix", "review-child");
+  reviewingChild.author.login = "contributor";
+  reviewingChild.reviewRequests = [{ login: "author" }];
+  const ownHotfix = pr(7, "hotfix", "own-patch");
+  const reviewingHotfix = pr(8, "hotfix", "review-patch");
+  reviewingHotfix.author.login = "contributor";
+  reviewingHotfix.reviewRequests = [{ login: "author" }];
+  const output = render(
+    [
+      ownMain,
+      reviewingMain,
+      ownDefault,
+      reviewingDefault,
+      ownChild,
+      reviewingChild,
+      ownHotfix,
+      reviewingHotfix,
+    ],
+    "author",
+    { ...target, trunk: "develop" },
+  );
+  const authored = section(output, "Authored");
+  const reviewing = section(output, "Reviewing");
+  expect(treePRs(authored)).toEqual(["#1", "#5", "#3", "#7"]);
+  expect(tablePRs(authored)).toEqual(["#1", "#5", "#3", "#7"]);
+  expect(treePRs(reviewing)).toEqual(["#2*", "#6*", "#4*", "#8*"]);
+  expect(tablePRs(reviewing)).toEqual(["#2*", "#6*", "#4*", "#8*"]);
+  expect(authored).toContain("\nmain\n└─ #1 テスト\n   └─ #5 テスト");
+  expect(reviewing).toContain("\nmain\n└─ #2* テスト\n   └─ #6* テスト");
+  for (const group of [authored, reviewing]) {
+    expect(group).toContain("\ndevelop\n");
+    expect(group).toContain("\nhotfix\n");
+    expect(group).toMatch(/Title\s+Diff\s+develop\s+Conflict/);
+  }
+});
+
 test("見出しなしのチェック結果・PR・Title の順で、成功・失敗・待機・なし・不明を表示する", () => {
   const prs: PR[] = ["SUCCESS", "FAILURE", "PENDING", null].map((state, index) => {
     const p = pr(index + 1);
@@ -108,6 +276,8 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   expect(tree?.trimEnd()).toBe(
     [
       "org/repo / author",
+      "",
+      "Authored",
       "",
       "Stack",
       "",

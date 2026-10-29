@@ -92,7 +92,7 @@ test("--repo と --trunk で指定したリポジトリと宛先ブランチで�
   expect(result.stdout.split("\n")[0]).toBe("other/repo / author");
   expect(result.stdout).toMatch(/PR\s+Title\s+Diff\s+release\s+Conflict/);
 });
-test("引数のユーザーが作者・レビュー依頼先・レビュー投稿者の PR を親とともに表示する", () => {
+test("引数のユーザーが作成した PR とレビューする PR を親とともに別々に表示する", () => {
   const parent = pr(8, "main", "parent");
   const requested = pr(2, "parent", "requested");
   requested.reviewRequests = [{ login: "Selected-User" }];
@@ -112,14 +112,14 @@ test("引数のユーザーが作者・レビュー依頼先・レビュー投�
     [{ number: 4 }],
   );
   expect(result.status).toBe(0);
-  const [tree, list] = result.stdout.split("\nPRs\n");
+  const [authored = "", reviewing = ""] =
+    result.stdout.split("\nAuthored\n")[1]?.split("\nReviewing\n") ?? [];
+  const numbers = (text: string) =>
+    text.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
+  expect(numbers(authored)).toEqual(["#3"]);
+  const [tree, list = ""] = reviewing.split("\nPRs\n");
   expect(tree).toContain("└─ #8* テスト\n   └─ #2* テスト");
-  expect(list?.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? [])).toEqual([
-    "#3",
-    "#4*",
-    "#8*",
-    "#2*",
-  ]);
+  expect(numbers(list)).toEqual(["#4*", "#8*", "#2*"]);
   expect(result.stdout).toContain("* PR by another author");
   expect(result.stdout).not.toContain("#5");
   expect(result.stdout).not.toContain("#6");
@@ -132,6 +132,33 @@ test("詳細のレビュー履歴が省略されても、レビュー済み PR �
   expect(result.status).toBe(0);
   expect(result.stdout.match(/#1\*/g)).toHaveLength(2);
   expect(result.stdout).not.toContain("No open PRs");
+});
+test("デフォルトブランチと異なる main・hotfix 宛の PR も取得して両方の組に表示する", () => {
+  const ownMain = pr(1, "main", "own-hotfix");
+  const requested = pr(2, "main", "review-hotfix");
+  requested.author.login = "contributor";
+  requested.reviewRequests = [{ login: "author" }];
+  const ownHotfix = pr(3, "hotfix", "own-patch");
+  const reviewed = pr(4, "hotfix", "review-patch");
+  reviewed.author.login = "contributor";
+  const result = runMain(
+    ["author"],
+    [ownMain, requested, ownHotfix, reviewed],
+    repoView("org/repo", "develop"),
+    [{ number: 4 }],
+  );
+  expect(result.status).toBe(0);
+  const [authored = "", reviewing = ""] =
+    result.stdout.split("\nAuthored\n")[1]?.split("\nReviewing\n") ?? [];
+  const numbers = (text: string) =>
+    text.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
+  expect(numbers(authored)).toEqual(["#1", "#3"]);
+  expect(numbers(reviewing)).toEqual(["#2*", "#4*"]);
+  for (const group of [authored, reviewing]) {
+    expect(group).toContain("\nmain\n");
+    expect(group).toContain("\nhotfix\n");
+  }
+  expect(result.stderr).toContain("Fetching details: #1, #2, #3, #4");
 });
 test("引数が不正なら GitHub に問い合わせずに使い方を表示して終了する", () => {
   const script = fileURLToPath(new URL("./index.mts", import.meta.url));

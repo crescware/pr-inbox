@@ -23,7 +23,6 @@ export const render = (
   now: Temporal.Instant = Temporal.Now.instant(),
   timeZone?: string,
 ): string => {
-  const ordered = mergeOrder(all, author, target.trunk);
   const selectedAuthor = author.toLowerCase();
   const otherAuthor = (pr: PR): boolean => pr.author.login.toLowerCase() !== selectedAuthor;
   const numberLabel = (pr: PR): string => "#" + pr.number + (otherAuthor(pr) ? "*" : "");
@@ -31,73 +30,14 @@ export const render = (
     styled(highlight, prNumber(target.repo, pr.number)) +
     (otherAuthor(pr) ? styled("green", "*") : "") +
     " ".repeat(Math.max(0, size - width(numberLabel(pr))));
-  const roots = new Map<string, PR[]>();
-  const children = new Map<number, PR[]>();
-  for (const pr of ordered) {
-    const parent = parentOf(ordered, pr, target.trunk);
-    if (parent) {
-      const siblings = children.get(parent.number) ?? [];
-      siblings.push(pr);
-      children.set(parent.number, siblings);
-    } else {
-      const siblings = roots.get(pr.baseRefName) ?? [];
-      siblings.push(pr);
-      roots.set(pr.baseRefName, siblings);
-    }
-  }
-  const displayOrder: PR[] = [];
+  const groups = [
+    { name: "Authored", ordered: mergeOrder(all, author, target.trunk, (pr) => !otherAuthor(pr)) },
+    { name: "Reviewing", ordered: mergeOrder(all, author, target.trunk, otherAuthor) },
+  ].filter((group) => group.ordered.length);
   const lines = [target.repo + " / " + author, ""];
-  if (ordered.some(otherAuthor)) {
+  if (groups.some((group) => group.ordered.some(otherAuthor))) {
     lines.push(styled("green", "*") + " PR by another author", "");
   }
-  lines.push(styled("bold", "Stack"), "");
-  const draw = (siblings: PR[], prefix: string): void => {
-    siblings.forEach((pr, index) => {
-      const last = index === siblings.length - 1;
-      lines.push(
-        prefix +
-          (last ? "└─ " : "├─ ") +
-          displayNumber(pr) +
-          " " +
-          prLink(target.repo, pr.number, styled("dim", clean(pr.title))),
-      );
-      displayOrder.push(pr);
-      draw(children.get(pr.number) ?? [], prefix + (last ? "   " : "│  "));
-    });
-  };
-  for (const [base, siblings] of roots) {
-    lines.push(clean(base));
-    draw(siblings, "");
-  }
-  if (!ordered.length) {
-    lines.push("No open PRs");
-  }
-  lines.push("", styled("bold", "PRs"));
-  const numberWidth = Math.max(7, ...displayOrder.map((pr) => width(numberLabel(pr))));
-  const titleWidth = Math.max(width("Title"), ...displayOrder.map((pr) => width(clean(pr.title))));
-  const additionsWidth = Math.max(2, ...displayOrder.map((pr) => width("+" + pr.additions)));
-  const deletionsWidth = Math.max(2, ...displayOrder.map((pr) => width("-" + pr.deletions)));
-  const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
-  const trunkWidth = width(clean(target.trunk));
-  lines.push(
-    "",
-    styled(
-      ["bold", "dim"],
-      [
-        cell("", 1),
-        cell("PR", numberWidth),
-        cell("Title", titleWidth),
-        cell("Diff", diffWidth),
-        cell(target.trunk, trunkWidth),
-        cell("Conflict", 8),
-        cell("Approved", 8),
-        cell("Fixed", 5),
-        cell("Commit", 6, "right"),
-        cell("Comment", 7, "right"),
-        "Reviewer",
-      ].join(" "),
-    ),
-  );
   const abbreviations = new Map<string, string[]>();
   const displayReviewer = (name: string, label = name): string =>
     styled(name.toLowerCase() === selectedAuthor ? "green" : "none", githubAccount(name, label));
@@ -118,42 +58,117 @@ export const render = (
       })
       .join(", ");
   };
-  displayOrder.forEach((pr) => {
-    const f = facts(pr);
-    const checks = { success: "✓", failure: "✗", pending: "?", none: "", unknown: "?" }[f.checks];
-    const title = clean(pr.title);
-    const additions = "+" + pr.additions;
-    const deletions = "-" + pr.deletions;
-    const highlight =
-      !otherAuthor(pr) &&
-      pr.baseRefName === target.trunk &&
-      f.approved === true &&
-      f.conflict === false
-        ? "greenBright"
-        : "none";
-    lines.push(
-      [
-        cell(checks, 1, "left", f.checks === "failure" ? "red" : undefined),
-        displayNumber(pr, numberWidth, highlight),
-        prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, cell(title, 0))) +
-          cell("", titleWidth - width(title)),
-        " ".repeat(additionsWidth - width(additions)) +
-          styled("green", additions) +
-          " " +
-          " ".repeat(deletionsWidth - width(deletions)) +
-          styled("red", deletions) +
-          " ".repeat(diffWidth - additionsWidth - 1 - deletionsWidth),
-        indicator(pr.baseRefName === target.trunk, trunkWidth),
-        indicator(f.conflict, 8, "red"),
-        indicator(f.approved, 8),
-        indicator(f.after === "不明" ? null : f.after === "あり", 5),
-        cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
-        cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
-        reviewers(f.reviewers),
-      ].join(" "),
+  const renderGroup = (ordered: PR[]): void => {
+    const roots = new Map<string, PR[]>();
+    const children = new Map<number, PR[]>();
+    for (const pr of ordered) {
+      const parent = parentOf(ordered, pr, target.trunk);
+      if (parent) {
+        const siblings = children.get(parent.number) ?? [];
+        siblings.push(pr);
+        children.set(parent.number, siblings);
+      } else {
+        const siblings = roots.get(pr.baseRefName) ?? [];
+        siblings.push(pr);
+        roots.set(pr.baseRefName, siblings);
+      }
+    }
+    const displayOrder: PR[] = [];
+    lines.push(styled("bold", "Stack"), "");
+    const draw = (siblings: PR[], prefix: string): void => {
+      siblings.forEach((pr, index) => {
+        const last = index === siblings.length - 1;
+        lines.push(
+          prefix +
+            (last ? "└─ " : "├─ ") +
+            displayNumber(pr) +
+            " " +
+            prLink(target.repo, pr.number, styled("dim", clean(pr.title))),
+        );
+        displayOrder.push(pr);
+        draw(children.get(pr.number) ?? [], prefix + (last ? "   " : "│  "));
+      });
+    };
+    for (const [base, siblings] of roots) {
+      lines.push(clean(base));
+      draw(siblings, "");
+    }
+    if (!ordered.length) {
+      lines.push("No open PRs");
+    }
+    lines.push("", styled("bold", "PRs"));
+    const numberWidth = Math.max(7, ...displayOrder.map((pr) => width(numberLabel(pr))));
+    const titleWidth = Math.max(
+      width("Title"),
+      ...displayOrder.map((pr) => width(clean(pr.title))),
     );
-  });
-  lines.push("");
+    const additionsWidth = Math.max(2, ...displayOrder.map((pr) => width("+" + pr.additions)));
+    const deletionsWidth = Math.max(2, ...displayOrder.map((pr) => width("-" + pr.deletions)));
+    const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
+    const trunkWidth = width(clean(target.trunk));
+    lines.push(
+      "",
+      styled(
+        ["bold", "dim"],
+        [
+          cell("", 1),
+          cell("PR", numberWidth),
+          cell("Title", titleWidth),
+          cell("Diff", diffWidth),
+          cell(target.trunk, trunkWidth),
+          cell("Conflict", 8),
+          cell("Approved", 8),
+          cell("Fixed", 5),
+          cell("Commit", 6, "right"),
+          cell("Comment", 7, "right"),
+          "Reviewer",
+        ].join(" "),
+      ),
+    );
+    displayOrder.forEach((pr) => {
+      const f = facts(pr);
+      const checks = { success: "✓", failure: "✗", pending: "?", none: "", unknown: "?" }[f.checks];
+      const title = clean(pr.title);
+      const additions = "+" + pr.additions;
+      const deletions = "-" + pr.deletions;
+      const highlight =
+        !otherAuthor(pr) &&
+        pr.baseRefName === target.trunk &&
+        f.approved === true &&
+        f.conflict === false
+          ? "greenBright"
+          : "none";
+      lines.push(
+        [
+          cell(checks, 1, "left", f.checks === "failure" ? "red" : undefined),
+          displayNumber(pr, numberWidth, highlight),
+          prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, cell(title, 0))) +
+            cell("", titleWidth - width(title)),
+          " ".repeat(additionsWidth - width(additions)) +
+            styled("green", additions) +
+            " " +
+            " ".repeat(deletionsWidth - width(deletions)) +
+            styled("red", deletions) +
+            " ".repeat(diffWidth - additionsWidth - 1 - deletionsWidth),
+          indicator(pr.baseRefName === target.trunk, trunkWidth),
+          indicator(f.conflict, 8, "red"),
+          indicator(f.approved, 8),
+          indicator(f.after === "不明" ? null : f.after === "あり", 5),
+          cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
+          cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
+          reviewers(f.reviewers),
+        ].join(" "),
+      );
+    });
+    lines.push("");
+  };
+  if (!groups.length) {
+    renderGroup([]);
+  }
+  for (const group of groups) {
+    lines.push(styled("bold", group.name), "");
+    renderGroup(group.ordered);
+  }
   if (abbreviations.size) {
     lines.push(styled("bold", "Reviewers"), "");
     for (const short of reviewerNames([...abbreviations.keys()])) {
