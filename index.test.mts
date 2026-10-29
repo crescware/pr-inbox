@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 
 import { pr, review } from "./src/fixtures.mts";
 import type { PR } from "./src/types.mts";
@@ -92,39 +92,59 @@ test("--repo と --trunk で指定したリポジトリと宛先ブランチで�
   expect(result.stdout.split("\n")[0]).toBe("other/repo / author");
   expect(result.stdout).toMatch(/PR\s+Title\s+Diff\s+release\s+Conflict/);
 });
-test("引数のユーザーが作成した PR とレビューする PR を親とともに別々に表示する", () => {
-  const parent = pr(8, "main", "parent");
-  const requested = pr(2, "parent", "requested");
-  requested.reviewRequests = [{ login: "Selected-User" }];
-  const own = pr(3, "main", "own");
-  own.author.login = "selected-user";
-  const reviewed = pr(4, "main", "reviewed");
-  reviewed.detail.reviews.nodes = [review("APPROVED", "", undefined, "selected-user")];
-  const closed = pr(5, "main", "closed");
-  closed.reviewRequests = [{ login: "selected-user" }];
-  closed.detail.state = "CLOSED";
-  const unrelated = pr(6, "main", "unrelated");
-  unrelated.reviewRequests = [{ login: "another-reviewer" }];
-  const result = runMain(
-    ["selected-user"],
-    [requested, own, reviewed, closed, unrelated, parent],
-    undefined,
-    [{ number: 4 }],
-  );
-  expect(result.status).toBe(0);
-  const [authored = "", reviewing = ""] =
-    result.stdout.split("\nAuthored\n")[1]?.split("\nReviewing\n") ?? [];
-  const numbers = (text: string) =>
+describe("CLIで作成PRとレビュー対象を分ける", () => {
+  let result: ReturnType<typeof runMain>;
+  beforeAll(() => {
+    const parent = pr(8, "main", "parent");
+    const requested = pr(2, "parent", "requested");
+    requested.reviewRequests = [{ login: "Selected-User" }];
+    const own = pr(3, "main", "own");
+    own.author.login = "selected-user";
+    const reviewed = pr(4, "main", "reviewed");
+    reviewed.detail.reviews.nodes = [review("APPROVED", "", undefined, "selected-user")];
+    const closed = pr(5, "main", "closed");
+    closed.reviewRequests = [{ login: "selected-user" }];
+    closed.detail.state = "CLOSED";
+    const unrelated = pr(6, "main", "unrelated");
+    unrelated.reviewRequests = [{ login: "another-reviewer" }];
+    result = runMain(
+      ["selected-user"],
+      [requested, own, reviewed, closed, unrelated, parent],
+      undefined,
+      [{ number: 4 }],
+    );
+  });
+  const group = (name: "Authored" | "Reviewing"): string =>
+    result.stdout
+      .split("\n" + name + "\n")[1]
+      ?.split(/\n(?:Authored|Reviewing|Abbreviations)\n/)[0] ?? "";
+  const numbers = (text: string): string[] =>
     text.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
-  expect(numbers(authored)).toEqual(["#3"]);
-  expect(authored).toMatch(/Comment\s+Reviewer\n/);
-  const [tree, list = ""] = reviewing.split("\nPRs\n");
-  expect(list).toMatch(/Comment\s+Author\s+Reviewer\n/);
-  expect(tree).toContain("└─ #8* テスト\n   └─ #2* テスト");
-  expect(numbers(list)).toEqual(["#4*", "#8*", "#2*"]);
-  expect(result.stdout).toContain("* PR by another author");
-  expect(result.stdout).not.toContain("#5");
-  expect(result.stdout).not.toContain("#6");
+
+  test("正常終了する", () => {
+    expect(result.status).toBe(0);
+  });
+  describe.each([
+    { name: "Authored", expected: ["#3"], header: /Comment\s+Reviewer\n/ },
+    { name: "Reviewing", expected: ["#4*", "#8*", "#2*"], header: /Comment\s+Author\s+Reviewer\n/ },
+  ] as const)("$name", ({ name, expected, header }) => {
+    test("対象PRを親から子の順に表へ表示する", () => {
+      expect(numbers(group(name))).toEqual(expected);
+    });
+    test("指定されたカラムで表示する", () => {
+      expect(group(name)).toMatch(header);
+    });
+  });
+  test("Reviewingのツリーにも親子関係を表示する", () => {
+    const tree = group("Reviewing").split("\nPRs\n")[0];
+    expect(tree).toContain("└─ #8* テスト\n   └─ #2* テスト");
+  });
+  test("他の作者を示す凡例を表示する", () => {
+    expect(result.stdout).toContain("* PR by another author");
+  });
+  test.each(["#5", "#6"])("対象外のPR %s を表示しない", (number) => {
+    expect(result.stdout).not.toContain(number);
+  });
 });
 test("詳細のレビュー履歴が省略されても、レビュー済み PR をツリーと一覧に残す", () => {
   const reviewed = pr();
