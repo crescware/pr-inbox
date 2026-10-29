@@ -34,6 +34,13 @@ export const render = (
     { name: "Authored", ordered: mergeOrder(all, author, target.trunk, (pr) => !otherAuthor(pr)) },
     { name: "Reviewing", ordered: mergeOrder(all, author, target.trunk, otherAuthor) },
   ].filter((group) => group.ordered.length);
+  const displayed = groups.flatMap((group) => group.ordered);
+  const numberWidth = Math.max(7, ...displayed.map((pr) => width(numberLabel(pr))));
+  const titleWidth = Math.max(width("Title"), ...displayed.map((pr) => width(clean(pr.title))));
+  const additionsWidth = Math.max(2, ...displayed.map((pr) => width("+" + pr.additions)));
+  const deletionsWidth = Math.max(2, ...displayed.map((pr) => width("-" + pr.deletions)));
+  const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
+  const trunkWidth = width(clean(target.trunk));
   const lines = [target.repo + " / " + author, ""];
   if (groups.some((group) => group.ordered.some(otherAuthor))) {
     lines.push(styled("green", "*") + " PR by another author", "");
@@ -97,15 +104,6 @@ export const render = (
       lines.push("No open PRs");
     }
     lines.push("", styled("bold", "PRs"));
-    const numberWidth = Math.max(7, ...displayOrder.map((pr) => width(numberLabel(pr))));
-    const titleWidth = Math.max(
-      width("Title"),
-      ...displayOrder.map((pr) => width(clean(pr.title))),
-    );
-    const additionsWidth = Math.max(2, ...displayOrder.map((pr) => width("+" + pr.additions)));
-    const deletionsWidth = Math.max(2, ...displayOrder.map((pr) => width("-" + pr.deletions)));
-    const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
-    const trunkWidth = width(clean(target.trunk));
     lines.push(
       "",
       styled(
