@@ -41,11 +41,23 @@ export const render = (
   const deletionsWidth = Math.max(2, ...displayed.map((pr) => width("-" + pr.deletions)));
   const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
   const trunkWidth = width(clean(target.trunk));
+  const authorWidth = width("Author");
   const lines = [target.repo + " / " + author, ""];
   if (groups.some((group) => group.ordered.some(otherAuthor))) {
     lines.push(styled("green", "*") + " PR by another author", "");
   }
   const abbreviations = new Map<string, string[]>();
+  const abbreviate = (name: string): string => {
+    const short = [...name].slice(0, 5).join("");
+    if (short !== name) {
+      abbreviations.set(short, reviewerNames([...(abbreviations.get(short) ?? []), name]));
+    }
+    return short;
+  };
+  const displayAuthor = (name: string): string => {
+    const short = abbreviate(name);
+    return githubAccount(name, short) + cell("", authorWidth - width(short));
+  };
   const displayReviewer = (name: string, label = name): string =>
     styled(name.toLowerCase() === selectedAuthor ? "green" : "none", githubAccount(name, label));
   const reviewers = (names: string[] | null): string => {
@@ -55,17 +67,9 @@ export const render = (
     if (names.length < 2) {
       return names.length ? displayReviewer(names[0] ?? "") : styled("dim", "-");
     }
-    return names
-      .map((name) => {
-        const short = [...name].slice(0, 5).join("");
-        if (short !== name) {
-          abbreviations.set(short, reviewerNames([...(abbreviations.get(short) ?? []), name]));
-        }
-        return displayReviewer(name, short);
-      })
-      .join(", ");
+    return names.map((name) => displayReviewer(name, abbreviate(name))).join(", ");
   };
-  const renderGroup = (ordered: PR[]): void => {
+  const renderGroup = (ordered: PR[], showAuthor = false): void => {
     const roots = new Map<string, PR[]>();
     const children = new Map<number, PR[]>();
     for (const pr of ordered) {
@@ -119,6 +123,7 @@ export const render = (
           cell("Fixed", 5),
           cell("Commit", 6, "right"),
           cell("Comment", 7, "right"),
+          ...(showAuthor ? [cell("Author", authorWidth)] : []),
           "Reviewer",
         ].join(" "),
       ),
@@ -154,6 +159,7 @@ export const render = (
           indicator(f.after === "不明" ? null : f.after === "あり", 5),
           cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
           cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
+          ...(showAuthor ? [displayAuthor(pr.author.login)] : []),
           reviewers(f.reviewers),
         ].join(" "),
       );
@@ -165,10 +171,10 @@ export const render = (
   }
   for (const group of groups) {
     lines.push(styled("bold", group.name), "");
-    renderGroup(group.ordered);
+    renderGroup(group.ordered, group.name === "Reviewing");
   }
   if (abbreviations.size) {
-    lines.push(styled("bold", "Reviewers"), "");
+    lines.push(styled("bold", "Abbreviations"), "");
     for (const short of reviewerNames([...abbreviations.keys()])) {
       const names = abbreviations.get(short) ?? [];
       lines.push(

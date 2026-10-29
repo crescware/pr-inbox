@@ -14,13 +14,13 @@ const withoutColors = (output: string): string =>
   output.replaceAll(/\u001B\[[\d;]*m/g, "");
 
 const section = (output: string, name: "Authored" | "Reviewing"): string =>
-  output.split("\n" + name + "\n")[1]?.split(/\n(?:Authored|Reviewing|Reviewers)\n/)[0] ?? "";
+  output.split("\n" + name + "\n")[1]?.split(/\n(?:Authored|Reviewing|Abbreviations)\n/)[0] ?? "";
 const tablePRs = (output: string): string[] =>
   output.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
 const treePRs = (output: string): string[] =>
   output.split("\n").flatMap((line) => line.match(/[├└]─ (#\d+\*?) /)?.[1] ?? []);
 
-test("作成した PR とレビューする PR を別々のツリー・表で表示し、カラムを変えない", () => {
+test("作成した PR とレビューする PR を別々に表示し、Reviewing だけに Author を追加する", () => {
   const ownParent = pr(4, "main", "own-parent");
   ownParent.author.login = "Author";
   const ownChild = pr(2, "own-parent", "own-child");
@@ -60,16 +60,18 @@ test("作成した PR とレビューする PR を別々のツリー・表で表
     "Fixed",
     "Commit",
     "Comment",
-    "Reviewer",
   ];
-  for (const group of [authored, reviewing]) {
+  for (const [group, tail] of [
+    [authored, ["Reviewer"]],
+    [reviewing, ["Author", "Reviewer"]],
+  ] as const) {
     const header = group.split("\n").find((line) => /^  PR\s/.test(line));
-    expect(header?.trim().split(/\s+/)).toEqual(columns);
+    expect(header?.trim().split(/\s+/)).toEqual([...columns, ...tail]);
   }
   expect(output).not.toContain("#99");
 });
 test.each(["Authored", "Reviewing"] as const)(
-  "2表のPR番号・タイトル・Diffを共通の列位置に揃える（最長タイトル: %s）",
+  "2表のPR番号・タイトル・Diffを含めてCommentまでの列位置を揃える（最長タイトル: %s）",
   (longest) => {
     const own = pr(12, "main", "own");
     own.reviewRequests = [{ login: "reviewer-a" }];
@@ -95,19 +97,10 @@ test.each(["Authored", "Reviewing"] as const)(
     expect(headers).toHaveLength(2);
     for (const header of headers) {
       expect(
-        [
-          "PR",
-          "Title",
-          "Diff",
-          "main",
-          "Conflict",
-          "Approved",
-          "Fixed",
-          "Commit",
-          "Comment",
-          "Reviewer",
-        ].map((label) => header.indexOf(label)),
-      ).toEqual([2, 13, 46, 61, 66, 75, 84, 90, 97, 105]);
+        ["PR", "Title", "Diff", "main", "Conflict", "Approved", "Fixed", "Commit", "Comment"].map(
+          (label) => header.indexOf(label),
+        ),
+      ).toEqual([2, 13, 46, 61, 66, 75, 84, 90, 97]);
     }
     const rows = output.split("\n").filter((line) => /^[✓✗? ] #\d+\*?\s/.test(line));
     expect(rows).toHaveLength(2);
@@ -120,7 +113,7 @@ test.each(["Authored", "Reviewing"] as const)(
         changes.map((value) => width(row.slice(0, row.indexOf(value) + value.length))),
       ).toEqual([53, 60]);
       const reviewer = index === 0 ? "reviewer-a" : "author";
-      expect(width(row.slice(0, row.lastIndexOf(reviewer)))).toBe(105);
+      expect(width(row.slice(0, row.lastIndexOf(reviewer)))).toBe(index === 0 ? 105 : 112);
     }
     expect(output).not.toContain("Outside selection");
     const terminal = inTerminal(
@@ -130,6 +123,44 @@ test.each(["Authored", "Reviewing"] as const)(
     expect(stripVTControlCharacters(terminal)).toBe(output);
   },
 );
+test.each([
+  { login: "writer-long", short: "write" },
+  { login: "Bo", short: "Bo" },
+  { login: "abcde", short: "abcde" },
+])("Reviewing の Author は常に略記し、元のアカウントへリンクする（$login）", ({ login, short }) => {
+  const p = pr();
+  p.author.login = login;
+  p.reviewRequests = [{ login: "author" }];
+  const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+  const plain = withStdoutTTY(false, () => render([p], "author", target, [], now, "UTC"));
+  const reviewing = section(plain, "Reviewing");
+  const header = reviewing.split("\n").find((line) => /^  PR\s/.test(line)) ?? "";
+  const row = reviewing.split("\n").find((line) => /^[✓✗? ] #1\*\s/.test(line)) ?? "";
+  expect(header).toMatch(/Comment\s+Author\s+Reviewer$/);
+  const authorStart = header.indexOf("Author");
+  const reviewerStart = header.indexOf("Reviewer");
+  const authorAt = row.indexOf(short);
+  const reviewerAt = row.lastIndexOf("author");
+  expect(width(row.slice(0, authorAt))).toBe(authorStart);
+  expect(width(row.slice(0, reviewerAt))).toBe(reviewerStart);
+  expect(row.slice(authorAt, reviewerAt).trim()).toBe(short);
+  expect(row.slice(reviewerAt)).toBe("author");
+  if (short !== login) {
+    expect(reviewing).not.toContain(login);
+    expect(plain).toContain("\nAbbreviations\n\nwrite  writer-long\n");
+  } else {
+    expect(plain).not.toContain("\nAbbreviations\n");
+  }
+  expect(plain).not.toContain("\u001B");
+  const terminal = withStdoutTTY(true, () => render([p], "author", target, [], now, "UTC"));
+  const linkedRow = terminal
+    .split("\n")
+    .find((line) => /^[✓✗? ] #1\*\s/.test(stripVTControlCharacters(line)));
+  expect(linkedRow).toContain(
+    "\u001B]8;;https://github.com/" + login + "\u001B\\" + short + "\u001B]8;;\u001B\\",
+  );
+  expect(stripVTControlCharacters(terminal)).toBe(plain);
+});
 test("両方の組に必要な親 PR はそれぞれのツリーと表に残し、無関係な子は加えない", () => {
   const parent = pr(10, "main", "parent");
   parent.author.login = "contributor";
@@ -148,30 +179,41 @@ test("両方の組に必要な親 PR はそれぞれのツリーと表に残し�
   expect(tablePRs(authored)).toEqual(["#10*", "#12"]);
   expect(treePRs(reviewing)).toEqual(["#10*", "#12", "#14*"]);
   expect(tablePRs(reviewing)).toEqual(["#10*", "#12", "#14*"]);
+  expect(
+    reviewing
+      .split("\n")
+      .filter((line) => /^[✓✗? ] #\d+\*?\s/.test(line))
+      .map((line) => line.trim().split(/\s+/).slice(-2)),
+  ).toEqual([
+    ["contr", "author"],
+    ["autho", "author"],
+    ["contr", "author"],
+  ]);
   expect(reviewing).toContain("└─ #10* テスト\n   └─ #12 テスト\n      └─ #14* テスト");
   expect(output.match(/\* PR by another author/g)).toHaveLength(1);
   expect(output).not.toContain("#15");
 });
-test("両方の表の略記を最後の一箇所にまとめ、同じ略記の別人もすべて載せる", () => {
+test("Author と Reviewer の略記を最後の一箇所にまとめ、同じ略記の別人もすべて載せる", () => {
   const own = pr(1, "main", "own");
   own.reviewRequests = [{ login: "review-alpha" }, { login: "helper-one" }];
   const requested = pr(2, "main", "requested");
-  requested.author.login = "contributor";
+  requested.author.login = "review-author";
   requested.reviewRequests = [{ login: "author" }, { login: "review-beta" }];
   const output = render([requested, own], "author", target, ["Example warning"]);
   expect(tablePRs(section(output, "Authored"))).toEqual(["#1"]);
   expect(tablePRs(section(output, "Reviewing"))).toEqual(["#2*"]);
-  expect(output.match(/\nReviewers\n/g)).toHaveLength(1);
-  expect(output.split("\nReviewers\n\n")[1]).toBe(
+  expect(output.match(/\nAbbreviations\n/g)).toHaveLength(1);
+  expect(output).not.toContain("\nReviewers\n");
+  expect(output.split("\nAbbreviations\n\n")[1]).toBe(
     [
       "autho  author",
       "helpe  helper-one",
-      "revie  review-alpha, review-beta",
+      "revie  review-alpha, review-author, review-beta",
       "",
       "Warning: Example warning",
     ].join("\n"),
   );
-  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("  #2* "));
+  expect(output.indexOf("\nAbbreviations\n")).toBeGreaterThan(output.indexOf("  #2* "));
   const terminal = inTerminal(
     new URL("./render.mts", import.meta.url),
     `m.render(${JSON.stringify([requested, own])}, "author", ${JSON.stringify(target)}, ["Example warning"])`,
@@ -754,10 +796,10 @@ test("複数人の Reviewer だけ先頭5文字にし、対応表を一覧の下
   expect(rows[0]).toMatch(/alpha, bravo$/);
   expect(rows[1]).toMatch(/single-reviewer$/);
   expect(rows[2]).toMatch(/alpha, delta$/);
-  expect(output.split("\nReviewers\n\n")[1]).toBe(
+  expect(output.split("\nAbbreviations\n\n")[1]).toBe(
     ["alpha  alpha-reviewer", "bravo  bravo-reviewer", "delta  delta-reviewer", ""].join("\n"),
   );
-  expect(output.indexOf("\nReviewers\n")).toBeGreaterThan(output.indexOf("  #3 "));
+  expect(output.indexOf("\nAbbreviations\n")).toBeGreaterThan(output.indexOf("  #3 "));
 });
 test("1人だけの場合と5文字以下の名前だけの場合は対応表を出さない", () => {
   const single = pr(1);
@@ -765,7 +807,7 @@ test("1人だけの場合と5文字以下の名前だけの場合は対応表を
   const short = pr(2);
   short.reviewRequests = [{ login: "beta" }, { login: "alpha" }];
   const output = render([single, short], "author", target);
-  expect(output).not.toContain("\nReviewers\n");
+  expect(output).not.toContain("\nAbbreviations\n");
   expect(output).toMatch(/alpha, beta\n$/);
 });
 test("先頭5文字が同じ Reviewer は対応表で全員を併記する", () => {

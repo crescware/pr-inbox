@@ -117,7 +117,9 @@ test("引数のユーザーが作成した PR とレビューする PR を親と
   const numbers = (text: string) =>
     text.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? []);
   expect(numbers(authored)).toEqual(["#3"]);
+  expect(authored).toMatch(/Comment\s+Reviewer\n/);
   const [tree, list = ""] = reviewing.split("\nPRs\n");
+  expect(list).toMatch(/Comment\s+Author\s+Reviewer\n/);
   expect(tree).toContain("└─ #8* テスト\n   └─ #2* テスト");
   expect(numbers(list)).toEqual(["#4*", "#8*", "#2*"]);
   expect(result.stdout).toContain("* PR by another author");
