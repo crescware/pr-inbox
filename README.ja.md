@@ -30,7 +30,7 @@ npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 
 ## 表示
 
-`Authored` で自分が作成した PR、`Reviewing` でレビューを依頼された PR やレビュー済みの PR を、それぞれ別のツリーと状況一覧で確認できる。デフォルトブランチ宛に限らず、`main` や `hotfix` など、他のブランチ宛の PR も表示する。
+`Authored` で自分が作成した PR、`Reviewing` でレビューを依頼された PR やレビュー済みの PR を、それぞれ別のツリーと状況一覧で確認できる。
 
 `Stack` は PR の親子関係を示す。他の作者の親 PR も含む。タイトルはラベルを足さず、全文を表示する。
 

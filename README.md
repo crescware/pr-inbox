@@ -30,7 +30,7 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 ## Output
 
-`Authored` shows PRs you've created, and `Reviewing` shows PRs you've been asked to review or have already reviewed. Each has its own tree and status table, so you can check your PRs and review work separately. PRs targeting branches such as `main` or `hotfix` appear alongside those targeting the default branch.
+`Authored` shows PRs you've created, and `Reviewing` shows PRs you've been asked to review or have already reviewed. Each has its own tree and status table, so you can check your PRs and review work separately.
 
 `Stack` shows the parent-child relationships between PRs. It also includes parent PRs by other authors. Titles are displayed in full, without added labels.
 
