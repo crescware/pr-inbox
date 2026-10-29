@@ -7,6 +7,7 @@ import { expect, test } from "vitest";
 import { inTerminal, pr, review, target, withStdoutTTY } from "./fixtures.mts";
 import { render } from "./render.mts";
 import type { PR } from "./types.mts";
+import { width } from "./width.mts";
 
 const withoutColors = (output: string): string =>
   // eslint-disable-next-line no-control-regex -- Remove SGR colors while retaining OSC 8 links.
@@ -67,6 +68,68 @@ test("作成した PR とレビューする PR を別々のツリー・表で表
   }
   expect(output).not.toContain("#99");
 });
+test.each(["Authored", "Reviewing"] as const)(
+  "2表のPR番号・タイトル・Diffを共通の列位置に揃える（最長タイトル: %s）",
+  (longest) => {
+    const own = pr(12, "main", "own");
+    own.reviewRequests = [{ login: "reviewer-a" }];
+    const requested = pr(12345678, "main", "requested");
+    requested.author.login = "contributor";
+    requested.reviewRequests = [{ login: "author" }];
+    const [long, short] = longest === "Authored" ? [own, requested] : [requested, own];
+    long.title = "長".repeat(16);
+    long.additions = 123456;
+    long.deletions = 2;
+    short.title = "Fix";
+    short.additions = 7;
+    short.deletions = 76543;
+    const unrelated = pr(9999999999, "main", "unrelated");
+    unrelated.author.login = "contributor";
+    unrelated.title = "Outside selection ".repeat(20);
+    unrelated.additions = 1234567890;
+    unrelated.deletions = 1234567890;
+    const prs = [unrelated, requested, own];
+    const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+    const output = withStdoutTTY(false, () => render(prs, "author", target, [], now, "UTC"));
+    const headers = output.split("\n").filter((line) => /^  PR\s/.test(line));
+    expect(headers).toHaveLength(2);
+    for (const header of headers) {
+      expect(
+        [
+          "PR",
+          "Title",
+          "Diff",
+          "main",
+          "Conflict",
+          "Approved",
+          "Fixed",
+          "Commit",
+          "Comment",
+          "Reviewer",
+        ].map((label) => header.indexOf(label)),
+      ).toEqual([2, 13, 46, 61, 66, 75, 84, 90, 97, 105]);
+    }
+    const rows = output.split("\n").filter((line) => /^[✓✗? ] #\d+\*?\s/.test(line));
+    expect(rows).toHaveLength(2);
+    for (const [index, row] of rows.entries()) {
+      const p = index === 0 ? own : requested;
+      expect(width(row.slice(0, row.indexOf(p.title)))).toBe(13);
+      const changes = row.match(/\+\d+|-\d+/g) ?? [];
+      expect(changes).toHaveLength(2);
+      expect(
+        changes.map((value) => width(row.slice(0, row.indexOf(value) + value.length))),
+      ).toEqual([53, 60]);
+      const reviewer = index === 0 ? "reviewer-a" : "author";
+      expect(width(row.slice(0, row.lastIndexOf(reviewer)))).toBe(105);
+    }
+    expect(output).not.toContain("Outside selection");
+    const terminal = inTerminal(
+      new URL("./render.mts", import.meta.url),
+      `m.render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)}, [], (await import("temporal-polyfill-lite")).Temporal.Instant.from("2026-10-09T12:00:00Z"), "UTC")`,
+    );
+    expect(stripVTControlCharacters(terminal)).toBe(output);
+  },
+);
 test("両方の組に必要な親 PR はそれぞれのツリーと表に残し、無関係な子は加えない", () => {
   const parent = pr(10, "main", "parent");
   parent.author.login = "contributor";
