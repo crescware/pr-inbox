@@ -36,7 +36,7 @@ While fetching, it prints progress, such as fetching the open PR list and the PR
 
 `PRs` is a list in the same order as the tree. In both views, PRs by authors other than the selected user have `*` immediately after the PR number, such as `#12*`. When such PRs are present, a legend explains the marker above the tree. Usernames are compared case-insensitively. The marker uses the same green as added lines in supporting terminals and remains visible when colors are disabled or output is piped.
 
-PR numbers and titles in the tree and list link to their PRs, and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
+PR numbers and titles in the tree and list link to their PRs, and author and reviewer names link to their GitHub accounts, using OSC 8 hyperlinks in supporting terminals. No link control sequences are added to piped output.
 
 | Column      | Description                                                                                                                                                                                                                    |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -50,9 +50,10 @@ PR numbers and titles in the tree and list link to their PRs, and reviewer names
 | Fixed       | Has a non-merge commit after the latest comment                                                                                                                                                                                |
 | Commit      | Time since the latest non-merge commit                                                                                                                                                                                         |
 | Comment     | Time since the latest comment                                                                                                                                                                                                  |
+| Author      | PR author, shown as an abbreviation in `Reviewing` only. Open the linked GitHub account to see who created the PR                                                                                                              |
 | Reviewer    | Requested reviewers and people who reviewed, deduplicated and sorted alphabetically. With multiple people, shows the first 5 characters of each name; with one person, the full name. Separated by `, `. `-` if there are none |
 
-When names are abbreviated, a single `Reviewers` table below both sections maps each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
+`Abbreviations` below both sections lets you look up the full names of authors and reviewers shown as abbreviations. If multiple names share an abbreviation, all of them are listed together.
 
 The selected user's name or abbreviation is highlighted in green in `Reviewer`, making their review assignments easy to spot.
 
