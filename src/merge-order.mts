@@ -2,7 +2,16 @@ import { parentOf } from "./parent-of.mts";
 import type { PR } from "./types.mts";
 
 export const mergeOrder = (all: PR[], author: string, trunk: string): PR[] => {
-  const selected = all.filter((p) => p.author.login.toLowerCase() === author.toLowerCase());
+  const user = author.toLowerCase();
+  const selected = all.filter(
+    (p) =>
+      p.author.login.toLowerCase() === user ||
+      p.reviewRequests.some((r) => r.login?.toLowerCase() === user) ||
+      p.reviewedBy?.toLowerCase() === user ||
+      p.detail?.reviews.nodes.some(
+        (r) => r.state !== "PENDING" && r.author?.login.toLowerCase() === user,
+      ),
+  );
   const included = new Map<number, PR>();
   const parents = new Map<number, PR>();
   const include = (pr: PR, visiting = new Set<number>()): void => {

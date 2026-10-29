@@ -331,6 +331,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
   const draft = pr();
   draft.isDraft = true;
+  draft.reviewRequests = [{ login: "Author" }];
   const missing = pr(3);
   missing.detail.commits.nodes = [];
   const approved = pr(4, "main", "approved");
@@ -338,6 +339,7 @@ test("対応ターミナルだけ色付けし、パイプ出力と NO_COLOR で�
   approved.detail.reviews.nodes = [review("APPROVED")];
   const child = pr(5, "approved", "child");
   child.detail.reviews.nodes = [review("APPROVED")];
+  child.reviewRequests = [{ login: "Author" }, { login: "other-reviewer" }];
   const conflicting = pr(6, "main", "conflicting");
   conflicting.detail.reviews.nodes = [review("APPROVED")];
   conflicting.detail.mergeable = "CONFLICTING";
@@ -540,6 +542,37 @@ test("先頭5文字が同じ Reviewer は対応表で全員を併記する", () 
   expect(output).toContain("revie, revie\n");
   expect(output).toContain("revie  reviewer-a, reviewer-b\n");
 });
+test.each([
+  { multiple: false, submitted: false, label: "Reviewer-alpha" },
+  { multiple: true, submitted: false, label: "Revie" },
+  { multiple: true, submitted: true, label: "Revie" },
+])(
+  "Reviewer 列の指定ユーザーだけ既存の緑色にする（複数: $multiple、投稿済み: $submitted）",
+  ({ multiple, submitted, label }) => {
+    const p = pr();
+    const login = "Reviewer-alpha";
+    p.reviewRequests = submitted ? [] : [{ login }];
+    if (submitted) {
+      p.detail.reviews.nodes = [review("APPROVED", "", undefined, login)];
+    }
+    if (multiple) {
+      p.reviewRequests.push({ login: "Reviewer-beta" });
+    }
+    const output = inTerminal(
+      new URL("./render.mts", import.meta.url),
+      `m.render(${JSON.stringify([p])}, "reviewer-alpha", ${JSON.stringify(target)})`,
+    );
+    const row = output
+      .split("\n")
+      .find((line) => /^[✓✗? ] #1\*\s/.test(stripVTControlCharacters(line)));
+    const link = (name: string, text: string) =>
+      "\u001B]8;;https://github.com/" + name + "\u001B\\" + text + "\u001B]8;;\u001B\\";
+    const expected = "\u001B[32m" + link(login, label) + "\u001B[39m";
+    expect(
+      row?.endsWith(multiple ? expected + ", " + link("Reviewer-beta", "Revie") : expected),
+    ).toBe(true);
+  },
+);
 test("端末では一覧と対応表のReviewer名をGitHubアカウントへのリンクにする", () => {
   const script = fileURLToPath(new URL("./render.mts", import.meta.url));
   const p = pr();

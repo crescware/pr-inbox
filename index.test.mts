@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-import { pr } from "./src/fixtures.mts";
+import { pr, review } from "./src/fixtures.mts";
 import type { PR } from "./src/types.mts";
 
 type GhResult = { status: number; stdout: string; stderr?: string };
@@ -21,6 +21,7 @@ const runMain = (
   args: string[],
   prs: PR[] = [],
   view: GhResult = repoView("org/repo", "main"),
+  reviewed: { number: number }[] = [],
 ): {
   status: number | null;
   stdout: string;
@@ -43,8 +44,9 @@ childProcess.spawnSync = (command, args) => {
   if (command !== "gh") throw new Error("Unexpected command: " + command);
   calls.push(args);
   if (args[0] === "repo") return ${JSON.stringify(view)};
+  if (args.includes("--search")) return { status: 0, stdout: ${JSON.stringify(JSON.stringify(reviewed))} };
   return { status: 0, stdout: JSON.stringify(args[0] === "pr"
-    ? ${JSON.stringify(prs)}
+    ? ${JSON.stringify(prs.map((p) => ({ ...p, detail: undefined })))}
     : { data: { repository: ${JSON.stringify(details)} } }) };
 };
 syncBuiltinESMExports();
@@ -89,6 +91,47 @@ test("--repo と --trunk で指定したリポジトリと宛先ブランチで�
   expect(result.calls.map((args) => args[0])).toEqual(["pr"]);
   expect(result.stdout.split("\n")[0]).toBe("other/repo / author");
   expect(result.stdout).toMatch(/PR\s+Title\s+Diff\s+release\s+Conflict/);
+});
+test("引数のユーザーが作者・レビュー依頼先・レビュー投稿者の PR を親とともに表示する", () => {
+  const parent = pr(8, "main", "parent");
+  const requested = pr(2, "parent", "requested");
+  requested.reviewRequests = [{ login: "Selected-User" }];
+  const own = pr(3, "main", "own");
+  own.author.login = "selected-user";
+  const reviewed = pr(4, "main", "reviewed");
+  reviewed.detail.reviews.nodes = [review("APPROVED", "", undefined, "selected-user")];
+  const closed = pr(5, "main", "closed");
+  closed.reviewRequests = [{ login: "selected-user" }];
+  closed.detail.state = "CLOSED";
+  const unrelated = pr(6, "main", "unrelated");
+  unrelated.reviewRequests = [{ login: "another-reviewer" }];
+  const result = runMain(
+    ["selected-user"],
+    [requested, own, reviewed, closed, unrelated, parent],
+    undefined,
+    [{ number: 4 }],
+  );
+  expect(result.status).toBe(0);
+  const [tree, list] = result.stdout.split("\nPRs\n");
+  expect(tree).toContain("└─ #8* テスト\n   └─ #2* テスト");
+  expect(list?.split("\n").flatMap((line) => line.match(/^[✓✗? ] (#\d+\*?)/)?.[1] ?? [])).toEqual([
+    "#3",
+    "#4*",
+    "#8*",
+    "#2*",
+  ]);
+  expect(result.stdout).toContain("* PR by another author");
+  expect(result.stdout).not.toContain("#5");
+  expect(result.stdout).not.toContain("#6");
+});
+test("詳細のレビュー履歴が省略されても、レビュー済み PR をツリーと一覧に残す", () => {
+  const reviewed = pr();
+  reviewed.detail.reviews.nodes = Array.from({ length: 100 }, () => review("COMMENTED"));
+  reviewed.detail.reviews.pageInfo.hasPreviousPage = true;
+  const result = runMain(["selected-user"], [reviewed], undefined, [{ number: 1 }]);
+  expect(result.status).toBe(0);
+  expect(result.stdout.match(/#1\*/g)).toHaveLength(2);
+  expect(result.stdout).not.toContain("No open PRs");
 });
 test("引数が不正なら GitHub に問い合わせずに使い方を表示して終了する", () => {
   const script = fileURLToPath(new URL("./index.mts", import.meta.url));

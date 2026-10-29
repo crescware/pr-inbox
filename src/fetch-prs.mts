@@ -21,6 +21,29 @@ export const fetchPRs = (target: Target, author: string): { prs: PR[]; warnings:
   if (all.length === 500) {
     throw new Error("Cannot determine merge order with 500 or more open PRs");
   }
+  if (all.length) {
+    // Search so selection does not depend on the bounded review history fetched below.
+    const reviewed = gh<{ number: number }[]>([
+      "pr",
+      "list",
+      "--repo",
+      target.repo,
+      "--state",
+      "open",
+      "--limit",
+      "500",
+      "--search",
+      "reviewed-by:" + author,
+      "--json",
+      "number",
+    ]);
+    const numbers = new Set(reviewed.map((p) => p.number));
+    for (const pr of all) {
+      if (numbers.has(pr.number)) {
+        pr.reviewedBy = author;
+      }
+    }
+  }
   const ordered = mergeOrder(all, author, target.trunk);
   const [owner, name] = target.repo.split("/");
   const warnings: string[] = [];

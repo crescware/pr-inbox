@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 import { fetchPRs } from "./fetch-prs.mts";
-import { pr, target } from "./fixtures.mts";
+import { pr, review, target } from "./fixtures.mts";
 import { gh } from "./gh.mts";
 import type { PR } from "./types.mts";
 
@@ -9,9 +9,16 @@ vi.mock("./gh.mts", () => ({ gh: vi.fn() }));
 vi.mock("./sleep.mts", () => ({ sleep: vi.fn() }));
 
 /** gh pr list と gh api graphql の応答を prs から作る */
-const respond = (prs: PR[], graphql?: (args: string[]) => unknown) => {
+const respond = (
+  prs: PR[],
+  graphql?: (args: string[]) => unknown,
+  reviewed: { number: number }[] = [],
+) => {
   vi.mocked(gh).mockImplementation((args: string[]) => {
     if (args[0] === "pr") {
+      if (args.includes("--search")) {
+        return reviewed;
+      }
       const list = prs.map((p) => ({ ...p, detail: undefined }));
       return JSON.parse(JSON.stringify(list));
     }
@@ -45,7 +52,7 @@ test("対象リポジトリの Open PR を取得し、詳細を 5 件ずつ取�
   expect(vi.mocked(gh).mock.calls[0]?.[0]).toContain(
     "number,title,isDraft,additions,deletions,author,baseRefName,headRefName,isCrossRepository,reviewRequests",
   );
-  expect(gh).toHaveBeenCalledTimes(3);
+  expect(gh).toHaveBeenCalledTimes(4);
   expect(progress()).toEqual([
     "Fetching open PRs...",
     "Fetching details: #1, #2, #3, #4, #5",
@@ -63,6 +70,66 @@ test("指定した作者の PR と、その親の PR だけ詳細を取得する
   fetchPRs(target, "author");
   expect(progress()).toContain("Fetching details: #1, #3");
 });
+test("レビュー依頼中・レビュー済みの PR と親の詳細を取得し、無関係な PR は取得しない", () => {
+  const parent = pr(8, "main", "parent");
+  const requested = pr(2, "parent", "requested");
+  requested.reviewRequests = [{ login: "Selected-User" }];
+  const reviewed = pr(3, "main", "reviewed");
+  reviewed.detail.reviews.nodes = [review("APPROVED", "", undefined, "selected-user")];
+  respond([pr(4, "main", "unrelated"), requested, reviewed, parent], undefined, [{ number: 3 }]);
+  const result = fetchPRs(target, "selected-user");
+  expect(progress()).toEqual(["Fetching open PRs...", "Fetching details: #3, #8, #2"]);
+  expect(result.prs.filter((p) => p.detail).map((p) => p.number)).toEqual([2, 3, 8]);
+  expect(vi.mocked(gh).mock.calls[1]?.[0]).toEqual([
+    "pr",
+    "list",
+    "--repo",
+    "org/repo",
+    "--state",
+    "open",
+    "--limit",
+    "500",
+    "--search",
+    "reviewed-by:selected-user",
+    "--json",
+    "number",
+  ]);
+  expect(result.warnings).toEqual([]);
+});
+test("取得範囲のレビュー履歴に指定ユーザーがいなくても、検索で見つかった PR を含める", () => {
+  const reviewed = pr(1);
+  reviewed.detail.reviews.nodes = Array.from({ length: 100 }, () => review("COMMENTED"));
+  reviewed.detail.reviews.pageInfo.hasPreviousPage = true;
+  respond([reviewed], undefined, [{ number: 1 }]);
+  const result = fetchPRs(target, "selected-user");
+  expect(result.prs[0]?.detail).toBeDefined();
+  expect(result.prs[0]?.reviewedBy).toBe("selected-user");
+});
+test("レビュー詳細の取得に失敗しても、検索で確認したレビュアー情報を残す", () => {
+  respond(
+    [pr()],
+    () => {
+      throw new Error("timeout");
+    },
+    [{ number: 1 }],
+  );
+  const result = fetchPRs(target, "selected-user");
+  expect(progress()).toContain("Fetching details: #1");
+  expect(result.prs[0]).toMatchObject({ number: 1, reviewedBy: "selected-user" });
+  expect(result.prs[0]?.detail).toBeUndefined();
+  expect(result.warnings).toEqual(["Failed to fetch #1: timeout"]);
+});
+test("レビュー済み PR の検索に失敗したら、対象を欠いた一覧を返さずエラーにする", () => {
+  respond([pr()]);
+  const mock = vi.mocked(gh).getMockImplementation()!;
+  vi.mocked(gh).mockImplementation((args: string[]) => {
+    if (args.includes("--search")) {
+      throw new Error("search unavailable");
+    }
+    return mock(args);
+  });
+  expect(() => fetchPRs(target, "selected-user")).toThrow("search unavailable");
+});
 test("最新コミットの check runs と commit statuses をまとめて取得する", () => {
   const p = pr();
   p.detail.headCommit = {
@@ -70,7 +137,7 @@ test("最新コミットの check runs と commit statuses をまとめて取得
   };
   respond([p]);
   const result = fetchPRs(target, "author");
-  const query = vi.mocked(gh).mock.calls[1]?.[0].find((arg) => arg.startsWith("query="));
+  const query = vi.mocked(gh).mock.calls[2]?.[0].find((arg) => arg.startsWith("query="));
   expect(query).toContain("headCommit:commits(last:1){nodes{commit{statusCheckRollup{state}}}}");
   expect(result.prs[0]?.detail).toMatchObject({
     headCommit: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
@@ -79,7 +146,7 @@ test("最新コミットの check runs と commit statuses をまとめて取得
 test("リポジトリ名はクエリに埋め込まず GraphQL の変数で渡す", () => {
   respond([pr()]);
   fetchPRs({ repo: "other/repo", trunk: "main" }, "author");
-  const graphql = vi.mocked(gh).mock.calls[1]?.[0] ?? [];
+  const graphql = vi.mocked(gh).mock.calls[2]?.[0] ?? [];
   expect(graphql.slice(0, 6)).toEqual(["api", "graphql", "-f", "owner=other", "-f", "name=repo"]);
   expect(graphql.find((arg) => arg.startsWith("query="))).not.toContain("other");
 });
