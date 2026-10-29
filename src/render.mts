@@ -99,12 +99,14 @@ export const render = (
     ),
   );
   const abbreviations = new Map<string, string[]>();
+  const displayReviewer = (name: string, label = name): string =>
+    styled(name.toLowerCase() === selectedAuthor ? "green" : "none", githubAccount(name, label));
   const reviewers = (names: string[] | null): string => {
     if (names === null) {
       return "Unknown";
     }
     if (names.length < 2) {
-      return names.length ? githubAccount(names[0] ?? "") : styled("dim", "-");
+      return names.length ? displayReviewer(names[0] ?? "") : styled("dim", "-");
     }
     return names
       .map((name) => {
@@ -112,7 +114,7 @@ export const render = (
         if (short !== name) {
           abbreviations.set(short, reviewerNames([...(abbreviations.get(short) ?? []), name]));
         }
-        return githubAccount(name, short);
+        return displayReviewer(name, short);
       })
       .join(", ");
   };

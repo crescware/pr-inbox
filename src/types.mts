@@ -42,6 +42,8 @@ export type PR = {
   headRefName: string;
   isCrossRepository?: boolean;
   reviewRequests: { login?: string; slug?: string; name?: string }[];
+  /** User whose submitted review was found by the PR search. */
+  reviewedBy?: string;
   detail?: Detail;
 };
 export type Facts = {

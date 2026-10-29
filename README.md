@@ -2,7 +2,7 @@
 
 English | [日本語](./README.ja.md)
 
-Shows a given user's open PRs in the terminal as a stack tree, followed by a check and review status list in the same order. It never writes to GitHub.
+Keep track of PRs you create and review in one place, right in your terminal. See open PRs in a stack tree alongside a check and review status list. It never writes to GitHub.
 
 ## Requirements
 
@@ -17,7 +17,7 @@ npx pr-inbox [--repo OWNER/REPO] [--trunk BRANCH] YOUR_GITHUB_USERNAME
 
 If installed with `npm install -g pr-inbox`, run it as `pr-inbox`.
 
-Replace `YOUR_GITHUB_USERNAME` with the GitHub username to check. The username is required.
+Replace `YOUR_GITHUB_USERNAME` with the GitHub username to check. The username is required. You'll see PRs they've created, been asked to review, or already reviewed.
 
 | Option    | Description                                                                |
 | --------- | -------------------------------------------------------------------------- |
@@ -51,6 +51,8 @@ PR numbers and titles in the tree and list link to their PRs, and reviewer names
 | Reviewer    | Requested reviewers and people who reviewed, deduplicated and sorted alphabetically. With multiple people, shows the first 5 characters of each name; with one person, the full name. Separated by `, `. `-` if there are none |
 
 When names are abbreviated, `Reviewers` below the list shows a table mapping each abbreviation to the original names. If multiple names share an abbreviation, all of them are listed.
+
+The selected user's name or abbreviation is highlighted in green in `Reviewer`, making their review assignments easy to spot.
 
 Values in the base branch, `Conflict`, `Approved`, and `Fixed` columns are right-aligned: `✓` if applicable, `-` if not, and `?` if unknown. If GitHub is still computing whether a PR has conflicts, it re-queries up to 3 times at 2-second intervals, and `Conflict` shows `?` if the result is still unavailable. `Fixed` is `-` for PRs without comments. `Fixed` only compares timestamps; it does not judge the content of review comments or whether threads are resolved.
 
