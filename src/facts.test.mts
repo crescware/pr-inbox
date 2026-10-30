@@ -113,6 +113,79 @@ test("最新コメントより後のコミットを検出する", () => {
   expect(facts(p).after).toBe("あり");
   expect(facts(p).commentAt).toBe("2026-10-09T09:00:00Z");
 });
+test("レビュー本文・スレッド内コメント・一般コメントの件数を合計する", () => {
+  const p = pr();
+  p.detail.reviews.nodes = [
+    review("COMMENTED", "Please adjust the naming"),
+    review("APPROVED"),
+    review("COMMENTED", " \n\t"),
+  ];
+  const comment = {
+    author: { login: "reviewer", __typename: "User" },
+    createdAt: "2026-10-09T09:00:00Z",
+    state: "SUBMITTED",
+  };
+  p.detail.comments.nodes = [comment, comment];
+  p.detail.reviewThreads.nodes = [{ comments: empty([comment, comment]) }];
+  expect(facts(p).commentCount).toBe(5);
+  p.detail.commits.pageInfo.hasPreviousPage = true;
+  expect(facts(p).commentCount).toBe(5);
+});
+test.each([
+  { login: "author", __typename: "User" },
+  { login: "AUTHOR", __typename: "User" },
+  { login: "review-bot", __typename: "Bot" },
+  null,
+])("作者・Bot・不明な投稿者のコメントを数えない: %j", (author) => {
+  const p = pr();
+  p.detail.reviews.nodes = [{ ...review("COMMENTED", "Please adjust the naming"), author }];
+  const comment = { author, createdAt: "2026-10-09T09:00:00Z" };
+  p.detail.comments.nodes = [comment];
+  p.detail.reviewThreads.nodes = [{ comments: empty([comment]) }];
+  expect(facts(p).commentCount).toBe(0);
+});
+test("未投稿のレビューとスレッド内コメントを数えない", () => {
+  const p = pr();
+  p.detail.reviews.nodes = [review("PENDING", "Please adjust the naming")];
+  p.detail.reviewThreads.nodes = [
+    {
+      comments: empty([
+        {
+          author: { login: "reviewer", __typename: "User" },
+          createdAt: "2026-10-09T09:00:00Z",
+          state: "PENDING",
+        },
+      ]),
+    },
+  ];
+  expect(facts(p).commentCount).toBe(0);
+});
+test("コメントなしの0件と詳細未取得の件数不明を区別する", () => {
+  expect(facts(pr()).commentCount).toBe(0);
+  expect(facts({ ...pr(), detail: undefined }).commentCount).toBeNull();
+});
+test.each(["reviews", "comments", "reviewThreads", "threadComments"] as const)(
+  "%s の取得が不完全ならコメント件数を不明にする",
+  (connection) => {
+    const p = pr();
+    p.detail.reviews.nodes = [review("COMMENTED", "Please adjust the naming")];
+    const comment = {
+      author: { login: "reviewer", __typename: "User" },
+      createdAt: "2026-10-09T09:00:00Z",
+    };
+    const comments = empty([comment]);
+    p.detail.comments.nodes = [comment];
+    p.detail.reviewThreads.nodes = [{ comments }];
+    if (connection === "threadComments") {
+      comments.pageInfo.hasPreviousPage = true;
+    } else if (connection === "reviewThreads") {
+      p.detail.reviewThreads.pageInfo.hasNextPage = true;
+    } else {
+      p.detail[connection].pageInfo.hasPreviousPage = true;
+    }
+    expect(facts(p).commentCount).toBeNull();
+  },
+);
 test("レビュー本文より新しいスレッド返信を最新コメントとして扱う", () => {
   const p = pr();
   p.detail.reviews.nodes = [review("COMMENTED", "指摘")];

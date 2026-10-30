@@ -40,6 +40,16 @@ export const render = (
   const additionsWidth = Math.max(2, ...displayed.map((pr) => width("+" + pr.additions)));
   const deletionsWidth = Math.max(2, ...displayed.map((pr) => width("-" + pr.deletions)));
   const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
+  const displayedFacts = displayed.map(facts);
+  const commentCountWidth = Math.max(
+    1,
+    ...displayedFacts.map((f) => width(String(f.commentCount ?? "?"))),
+  );
+  const commentTimeWidth = Math.max(
+    3,
+    ...displayedFacts.map((f) => width(relativeTime(f.commentAt, now, timeZone))),
+  );
+  const commentWidth = commentCountWidth + 3 + commentTimeWidth;
   const trunkWidth = width(clean(target.trunk));
   const authorWidth = width("Author");
   const lines = [target.repo + " / " + author, ""];
@@ -122,7 +132,7 @@ export const render = (
           cell("Approved", 8),
           cell("Fixed", 5),
           cell("Commit", 6, "right"),
-          cell("Comment", 7, "right"),
+          cell("Comment", commentWidth, "right"),
           ...(showAuthor ? [cell("Author", authorWidth)] : []),
           "Reviewer",
         ].join(" "),
@@ -158,7 +168,9 @@ export const render = (
           indicator(f.approved, 8),
           indicator(f.after === "不明" ? null : f.after === "あり", 5),
           cell(relativeTime(f.commitAt, now, timeZone), 6, "right"),
-          cell(relativeTime(f.commentAt, now, timeZone), 7, "right"),
+          cell(f.commentCount ?? "?", commentCountWidth, "right") +
+            " / " +
+            cell(relativeTime(f.commentAt, now, timeZone), commentTimeWidth, "right"),
           ...(showAuthor ? [displayAuthor(pr.author.login)] : []),
           reviewers(f.reviewers),
         ].join(" "),

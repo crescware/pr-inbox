@@ -532,9 +532,9 @@ test("Approve とコメント後のコミットはチェック・ハイフン・
   expect(rows[2]?.match(/✓/g)).toHaveLength(1);
   expect(rows[1]).not.toMatch(/あり|なし/);
   expect(rows[2]).not.toMatch(/あり|なし/);
-  expect(rows[3]?.slice(2).match(/\?/g)).toHaveLength(3);
-  expect(rows[1]).toMatch(/-\s+-\s+2h\s+1h/);
-  expect(rows[2]).toMatch(/-\s+-\s+2h\s+-/);
+  expect(rows[3]?.slice(2).match(/\?/g)).toHaveLength(4);
+  expect(rows[1]).toMatch(/-\s+-\s+2h\s+1 \/\s+1h/);
+  expect(rows[2]).toMatch(/-\s+-\s+2h\s+0 \/\s+-/);
 });
 test("時間の列を桁数に関係なく右詰めする", () => {
   const first = pr(1);
@@ -561,6 +561,83 @@ test("時間の列を桁数に関係なく右詰めする", () => {
   expect(row1.indexOf("10h") + 3).toBe(header.indexOf("Commit") + 6);
   expect(row2.indexOf("1m") + 2).toBe(header.indexOf("Commit") + 6);
 });
+describe.each(["Authored", "Reviewing"] as const)(
+  "コメント列の共通幅（最大件数: %s）",
+  (largest) => {
+    const layout = () => {
+      const short = pr(1, "main", "short");
+      short.detail.reviews.nodes = [review("COMMENTED", "Please adjust", "2026-10-09T11:51:00Z")];
+      const many = pr(2, "main", "many");
+      many.detail.reviews.nodes = Array.from({ length: 100 }, () =>
+        review("COMMENTED", "Please adjust", "2026-09-29T12:00:00Z"),
+      );
+      const old = pr(3, "main", "old");
+      old.detail.reviews.nodes = Array.from({ length: 12 }, () =>
+        review("COMMENTED", "Please adjust", "2023-05-24T12:00:00Z"),
+      );
+      const requested = largest === "Reviewing" ? many : old;
+      requested.author.login = "contributor";
+      requested.reviewRequests = [{ login: "author" }];
+      const noComments = pr(4, "main", "empty");
+      const incomplete = pr(5, "main", "incomplete");
+      incomplete.detail.reviews.nodes = [review("COMMENTED", "Please adjust")];
+      incomplete.detail.reviews.pageInfo.hasPreviousPage = true;
+      const unknown = { ...pr(6, "main", "unknown"), detail: undefined };
+      const unrelated = pr(7, "main", "unrelated");
+      unrelated.author.login = "contributor";
+      unrelated.detail.reviews.nodes = Array.from({ length: 1000 }, () =>
+        review("COMMENTED", "Please adjust", "1900-01-01T12:00:00Z"),
+      );
+      const prs = [short, many, old, noComments, incomplete, unknown, unrelated];
+      for (const p of prs) {
+        p.title = "Example";
+      }
+      const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+      const output = withStdoutTTY(false, () => render(prs, "author", target, [], now, "UTC"));
+      return { prs, output };
+    };
+    test("件数と経過時間をそれぞれ右詰めし、0件と不明も同じ幅で表示する", () => {
+      const { output } = layout();
+      const header = tableHeader(output);
+      const end = header.indexOf("Comment") + "Comment".length;
+      const cells = new Map(
+        tableRows(output).map((row) => [row.match(/#\d+/)?.[0], row.slice(end - 11, end)]),
+      );
+      expect(cells).toEqual(
+        new Map([
+          ["#1", "  1 /    9m"],
+          ["#2", "100 /   10d"],
+          ["#3", " 12 / 1234d"],
+          ["#4", "  0 /     -"],
+          ["#5", "  ? /     -"],
+          ["#6", "  ? /     -"],
+        ]),
+      );
+    });
+    test("両方の表で区切りと後続列の位置を揃え、表示対象外の値で幅を広げない", () => {
+      const { output } = layout();
+      const authored = section(output, "Authored");
+      const reviewing = section(output, "Reviewing");
+      const headers = [tableHeader(authored), tableHeader(reviewing)];
+      const end = headers[0].indexOf("Comment") + "Comment".length;
+      expect(headers[1].indexOf("Comment") + "Comment".length).toBe(end);
+      for (const row of tableRows(output)) {
+        expect(row.indexOf(" / ") + 1).toBe(end - 7);
+      }
+      expect(headers[0].indexOf("Reviewer")).toBe(end + 1);
+      expect(headers[1].indexOf("Author")).toBe(end + 1);
+      expect(output).not.toContain("#7");
+    });
+    test("色・リンク付きの端末出力でも桁揃えを維持する", () => {
+      const { prs, output } = layout();
+      const terminal = inTerminal(
+        new URL("./render.mts", import.meta.url),
+        `m.render(${JSON.stringify(prs.slice(0, -1))}, "author", ${JSON.stringify(target)}, [], (await import("temporal-polyfill-lite")).Temporal.Instant.from("2026-10-09T12:00:00Z"), "UTC")`,
+      );
+      expect(stripVTControlCharacters(terminal)).toBe(output);
+    });
+  },
+);
 test("追加行数と削除行数をそれぞれ右詰めする", () => {
   const large = pr(1);
   large.additions = 2014;
@@ -810,7 +887,7 @@ process.stdout.write(render(${JSON.stringify(prs)}, "author", ${JSON.stringify(t
       const row = result.stdout
         .split("\n")
         .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#3 "));
-      expect(row).toContain("\u001B[2m      -\u001B[22m");
+      expect(row).toContain("0 / \u001B[2m  -\u001B[22m");
       expect(row).toContain("\u001B[2m     -\u001B[22m");
       expect(row).toContain("\u001B[2m-\u001B[22m");
       const highlighted = result.stdout
