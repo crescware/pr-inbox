@@ -52,6 +52,7 @@ export type Facts = {
   conflict: boolean | null;
   approval: string;
   reviewers: string[] | null;
+  commentCount: number | null;
   commentAt: string | null;
   commitAt: string | null;
   after: string;
