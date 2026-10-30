@@ -158,6 +158,114 @@ describe.each(["Authored", "Reviewing"] as const)("2表の列揃え（最長タ�
   });
 });
 
+describe.each(["Authored", "Reviewing"] as const)("%sのタイトルの表示幅制限", (name) => {
+  test.each([
+    { label: "全角30文字", title: "界".repeat(30), expected: "界".repeat(30), size: 60 },
+    { label: "全角31文字", title: "界".repeat(31), expected: "界".repeat(28) + "...", size: 59 },
+    { label: "ASCII60文字", title: "a".repeat(60), expected: "a".repeat(60), size: 60 },
+    { label: "ASCII61文字", title: "a".repeat(61), expected: "a".repeat(57) + "...", size: 60 },
+    {
+      label: "日英混在",
+      title: "a".repeat(55) + "界界界",
+      expected: "a".repeat(55) + "界...",
+      size: 60,
+    },
+    {
+      label: "結合文字",
+      title: "a".repeat(56) + "ézzzz",
+      expected: "a".repeat(56) + "é...",
+      size: 60,
+    },
+    {
+      label: "結合濁点",
+      title: "が".repeat(31),
+      expected: "が".repeat(28) + "...",
+      size: 59,
+    },
+    ...["👩‍💻", "👨‍👩‍👧‍👦", "👍🏽", "🇯🇵", "1️⃣"].map((emoji) => ({
+      label: emoji,
+      title: "a".repeat(55) + emoji.repeat(3),
+      expected: "a".repeat(55) + emoji + "...",
+      size: 60,
+    })),
+    {
+      label: "絵文字を分断せずに切り詰める境界",
+      title: "a".repeat(56) + "👩‍💻".repeat(3),
+      expected: "a".repeat(56) + "...",
+      size: 59,
+    },
+    { label: "短い複合絵文字", title: "👩‍💻", expected: "👩‍💻", size: 5 },
+  ])("$label: ツリーは全文、表だけ省略し、その表示幅で列を揃える", ({ title, expected, size }) => {
+    const p = pr(12);
+    p.title = title;
+    if (name === "Reviewing") {
+      p.author.login = "contributor";
+      p.reviewRequests = [{ login: "author" }];
+    }
+    const output = withStdoutTTY(false, () => render([p], "author", target));
+    const [tree = ""] = section(output, name).split("\nPRs\n");
+    const header = tableHeader(output);
+    const row = tableRows(output)[0] ?? "";
+    expect(tree).toContain("└─ #12" + (name === "Reviewing" ? "*" : "") + " " + title);
+    expect(row.slice(header.indexOf("Title"), row.indexOf(" +123")).trimEnd()).toBe(expected);
+    expect(header.indexOf("Diff")).toBe(10 + size + 1);
+    expect(width(row.slice(0, row.indexOf("+123")))).toBe(10 + size + 1);
+  });
+});
+
+describe.each(["Authored", "Reviewing"] as const)(
+  "省略後のタイトルの共通幅（最長: %s）",
+  (longest) => {
+    const layout = () => {
+      const own = pr(1, "main", "own");
+      const requested = pr(2, "main", "requested");
+      requested.author.login = "contributor";
+      requested.reviewRequests = [{ login: "author" }];
+      const [long, short] = longest === "Authored" ? [own, requested] : [requested, own];
+      long.title = "a".repeat(55) + "👩‍💻".repeat(3);
+      short.title = "界".repeat(31);
+      const unrelated = pr(3, "main", "unrelated");
+      unrelated.author.login = "contributor";
+      unrelated.title = "z".repeat(500);
+      const prs = [own, requested, unrelated];
+      const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
+      const output = withStdoutTTY(false, () => render(prs, "author", target, [], now, "UTC"));
+      return { prs, output };
+    };
+    test("両方の表で省略後のタイトルに合わせて後続列を揃える", () => {
+      const { output } = layout();
+      for (const name of ["Authored", "Reviewing"] as const) {
+        const text = section(output, name);
+        const header = tableHeader(text);
+        const row = tableRows(text)[0] ?? "";
+        expect(header.indexOf("Diff")).toBe(71);
+        expect(width(row.slice(0, row.indexOf("+123")))).toBe(71);
+        expect(row).toContain(
+          name === longest ? "a".repeat(55) + "👩‍💻..." : "界".repeat(28) + "...",
+        );
+      }
+      expect(output).not.toContain("#3");
+    });
+    test("色とリンクを付けても表の省略・ツリーの全文・可視文字の位置を維持する", () => {
+      const { prs, output } = layout();
+      const terminal = inTerminal(
+        new URL("./render.mts", import.meta.url),
+        `m.render(${JSON.stringify(prs)}, "author", ${JSON.stringify(target)}, [], (await import("temporal-polyfill-lite")).Temporal.Instant.from("2026-10-09T12:00:00Z"), "UTC")`,
+      );
+      expect(stripVTControlCharacters(terminal)).toBe(output);
+      const label = "a".repeat(55) + "👩‍💻...";
+      const number = longest === "Authored" ? 1 : 2;
+      expect(withoutColors(terminal)).toContain(
+        "\u001B]8;;https://github.com/org/repo/pull/" +
+          number +
+          "\u001B\\" +
+          label +
+          "\u001B]8;;\u001B\\",
+      );
+    });
+  },
+);
+
 describe("ReviewingのAuthor", () => {
   const renderAuthor = (login: string, isTTY = false): string => {
     const p = pr();
@@ -456,7 +564,7 @@ test("他の作者の親 PR だけ番号に印を付け、タイトルと作者�
   expect(output).not.toContain("another-author");
   expect(output).not.toContain("#4");
 });
-test("分岐と階層をツリー表示し、一覧も同じ順序で件名を全文表示する", () => {
+test("分岐と階層をツリー表示し、ツリーは全文、一覧は省略した件名を同じ順序で表示する", () => {
   const parent = pr(4, "main", "parent");
   parent.title = "親の件名";
   const child = pr(3, "parent", "child");
@@ -466,7 +574,7 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
   const leaf = pr(6, "child", "leaf");
   leaf.title = "孫の件名";
   const other = pr(51, "main", "other");
-  other.title = "端末幅が狭くても絶対に省略しないとても長い日本語と English の件名".repeat(3);
+  other.title = "長".repeat(31);
   const output = render([other, leaf, child, sibling, parent], "author", target);
   const [tree, list] = output.split("\nPRs\n");
   expect(tree?.trimEnd()).toBe(
@@ -486,7 +594,8 @@ test("分岐と階層をツリー表示し、一覧も同じ順序で件名を�
     ].join("\n"),
   );
   expect(list).toBeDefined();
-  expect(list).toContain(other.title);
+  expect(list).toContain("長".repeat(28) + "...");
+  expect(list).not.toContain(other.title);
   expect(output).not.toContain("…");
   expect(output).not.toContain("宛先");
   expect(output).not.toContain("* PR by another author");
@@ -749,22 +858,25 @@ test("ツリーと一覧の PR タイトルを番号と同じ PR へのリンク
   const parent = pr(21, "main", "parent");
   parent.title = "  短い\n\t件名\u0007  ";
   const child = pr(22, "parent", "child");
-  child.title = "省略しない長い日本語と English の件名".repeat(3);
+  child.title = "省".repeat(31);
   const prs = [child, parent];
   const destination = { ...target, repo: "example/project" };
   const now = Temporal.Instant.from("2026-10-09T12:00:00Z");
   const plain = withStdoutTTY(false, () => render(prs, "author", destination, [], now, "UTC"));
   const output = withStdoutTTY(true, () => render(prs, "author", destination, [], now, "UTC"));
   const [tree, list] = withoutColors(output).split("\nPRs\n");
-  for (const [number, title] of [
-    [21, "短い 件名"],
-    [22, child.title],
+  for (const [number, title, shortened] of [
+    [21, "短い 件名", "短い 件名"],
+    [22, child.title, "省".repeat(28) + "..."],
   ] as const) {
     const start = "\u001B]8;;https://github.com/example/project/pull/" + number + "\u001B\\";
     const end = "\u001B]8;;\u001B\\";
-    for (const view of [tree, list]) {
+    for (const [view, label] of [
+      [tree, title],
+      [list, shortened],
+    ] as const) {
       expect(view?.split(start + "#" + number + end)).toHaveLength(2);
-      expect(view?.split(start + title + end)).toHaveLength(2);
+      expect(view?.split(start + label + end)).toHaveLength(2);
     }
   }
   expect(stripVTControlCharacters(output)).toBe(plain);

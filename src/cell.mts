@@ -1,4 +1,4 @@
-import { clean } from "./clean.mts";
+import { clean, type CleanOptions } from "./clean.mts";
 import { styled } from "./styled.mts";
 import { width } from "./width.mts";
 
@@ -7,8 +7,9 @@ export const cell = (
   size: number,
   align: "left" | "right" = "left",
   color?: "green" | "red",
+  options?: CleanOptions,
 ): string => {
-  const text = clean(value);
+  const text = clean(value, options);
   const padding = " ".repeat(Math.max(0, size - width(text)));
   const padded = align === "right" ? padding + text : text + padding;
   const style =

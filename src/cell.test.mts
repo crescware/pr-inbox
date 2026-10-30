@@ -18,6 +18,13 @@ test("幅を超える値は切り詰めない", () => {
 test("値から制御文字と改行を除いて表示する", () => {
   expect(withStdoutTTY(false, () => cell("a\n\u001Bb", 0))).toBe("a b");
 });
+test("書記素を保持する指定でも整形と幅による空白埋めを行う", () => {
+  expect(
+    withStdoutTTY(false, () =>
+      cell(" 👩‍💻\n\u001B", 4, "left", undefined, { preserveGraphemes: true }),
+    ),
+  ).toBe("👩‍💻  ");
+});
 test("端末では ✓ を緑、- を薄色、? を黄にし、色の指定があればそれを優先する", () => {
   const output = inTerminal(
     module,
