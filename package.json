@@ -25,6 +25,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "string-width": "8.3.0",
     "temporal-polyfill-lite": "0.4.3"
   },
   "devDependencies": {

@@ -12,6 +12,7 @@ import { prNumber } from "./pr-number.mts";
 import { relativeTime } from "./relative-time.mts";
 import { reviewerNames } from "./reviewer-names.mts";
 import { styled } from "./styled.mts";
+import { tableTitle } from "./table-title.mts";
 import type { PR, Target } from "./types.mts";
 import { width } from "./width.mts";
 
@@ -36,7 +37,10 @@ export const render = (
   ].filter((group) => group.ordered.length);
   const displayed = groups.flatMap((group) => group.ordered);
   const numberWidth = Math.max(7, ...displayed.map((pr) => width(numberLabel(pr))));
-  const titleWidth = Math.max(width("Title"), ...displayed.map((pr) => width(clean(pr.title))));
+  const titleWidth = Math.max(
+    width("Title"),
+    ...displayed.map((pr) => width(tableTitle(pr.title))),
+  );
   const additionsWidth = Math.max(2, ...displayed.map((pr) => width("+" + pr.additions)));
   const deletionsWidth = Math.max(2, ...displayed.map((pr) => width("-" + pr.deletions)));
   const diffWidth = Math.max(width("Diff"), additionsWidth + 1 + deletionsWidth);
@@ -104,7 +108,11 @@ export const render = (
             (last ? "└─ " : "├─ ") +
             displayNumber(pr) +
             " " +
-            prLink(target.repo, pr.number, styled("dim", clean(pr.title))),
+            prLink(
+              target.repo,
+              pr.number,
+              styled("dim", clean(pr.title, { preserveGraphemes: true })),
+            ),
         );
         displayOrder.push(pr);
         draw(children.get(pr.number) ?? [], prefix + (last ? "   " : "│  "));
@@ -141,7 +149,8 @@ export const render = (
     displayOrder.forEach((pr) => {
       const f = facts(pr);
       const checks = { success: "✓", failure: "✗", pending: "?", none: "", unknown: "?" }[f.checks];
-      const title = clean(pr.title);
+      const title = tableTitle(pr.title);
+      const titleCell = cell(title, 0, "left", undefined, { preserveGraphemes: true });
       const additions = "+" + pr.additions;
       const deletions = "-" + pr.deletions;
       const highlight =
@@ -155,7 +164,7 @@ export const render = (
         [
           cell(checks, 1, "left", f.checks === "failure" ? "red" : undefined),
           displayNumber(pr, numberWidth, highlight),
-          prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, cell(title, 0))) +
+          prLink(target.repo, pr.number, styled(pr.isDraft ? "dim" : highlight, titleCell)) +
             cell("", titleWidth - width(title)),
           " ".repeat(additionsWidth - width(additions)) +
             styled("green", additions) +

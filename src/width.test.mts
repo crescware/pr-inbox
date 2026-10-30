@@ -17,3 +17,13 @@ test("結合文字は幅0として数える", () => {
   expect(width("が")).toBe(2);
   expect(width("é")).toBe(1);
 });
+test.each(["👩‍💻", "👨‍👩‍👧‍👦", "👍🏽", "🇯🇵", "1️⃣"])(
+  "複数のコードポイントからなる絵文字 %s は幅2として数える",
+  (emoji) => {
+    expect(width(emoji)).toBe(2);
+  },
+);
+test("半角カナと幅が曖昧な文字は幅1として数える", () => {
+  expect(width("ｶﾀｶﾅ")).toBe(4);
+  expect(width("α·✓")).toBe(3);
+});
