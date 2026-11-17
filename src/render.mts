@@ -157,7 +157,8 @@ export const render = (
         !otherAuthor(pr) &&
         pr.baseRefName === target.trunk &&
         f.approved === true &&
-        f.conflict === false
+        f.conflict === false &&
+        (f.checks === "success" || f.checks === "none")
           ? "greenBright"
           : "none";
       lines.push(
