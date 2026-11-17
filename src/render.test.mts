@@ -808,6 +808,38 @@ test("PR タイトル以外は英語で表示し、表の下に摘要を出さ�
   expect(render([], "author", target, ["Fetch failed"])).toMatch(/\nWarning: Fetch failed$/);
 });
 test.each([
+  { label: "成功", state: "SUCCESS", highlighted: true },
+  { label: "チェックなし", state: null, highlighted: true },
+  { label: "失敗", state: "FAILURE", highlighted: false },
+  { label: "エラー", state: "ERROR", highlighted: false },
+  { label: "実行中", state: "PENDING", highlighted: false },
+  { label: "待機中", state: "EXPECTED", highlighted: false },
+  { label: "不明な状態", state: "UNRECOGNIZED", highlighted: false },
+  { label: "最新コミット未取得", state: undefined, highlighted: false },
+])("CIが「$label」の場合の一覧の番号・タイトルの強調", ({ state, highlighted }) => {
+  const p = pr(12);
+  p.title = "Example title";
+  p.detail.reviews.nodes = [review("APPROVED")];
+  p.detail.headCommit.nodes =
+    state === undefined
+      ? []
+      : [{ commit: { statusCheckRollup: state === null ? null : { state } } }];
+  const output = inTerminal(
+    new URL("./render.mts", import.meta.url),
+    `m.render(${JSON.stringify([p])}, "author", ${JSON.stringify(target)})`,
+  );
+  const row = output
+    .split("\n")
+    .find((line) => stripVTControlCharacters(line).slice(2).startsWith("#12 "));
+  expect(row).toBeDefined();
+  expect(row?.split("\u001B[92m")).toHaveLength(highlighted ? 3 : 1);
+  expect(row).toContain(
+    "\u001B]8;;https://github.com/org/repo/pull/12\u001B\\" +
+      (highlighted ? "\u001B[92mExample title\u001B[39m" : "Example title") +
+      "\u001B]8;;\u001B\\",
+  );
+});
+test.each([
   {
     label: "指定した作者・Ready",
     login: "Author",
